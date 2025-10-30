@@ -1,14 +1,26 @@
-import { ToolSet, UIMessage } from 'ai';
+import { UIMessage } from 'ai';
 
 export type HumanInTheLoopUIMessage = UIMessage;
 
-export type MyTools = {
-  searchLocalBackpacks: {
-    input: { zipCode: string; vendorPreference?: string };
+export type NetflixTools = {
+  getUserContext: {
+    input: Record<string, never>;
     output: string;
   };
-  initiatePurchase: {
-    input: { itemId: string; price: number; vendor: string; zipCode: string };
+  fetchRecommendations: {
+    input: { genre: string; nostalgia: boolean; limit?: number };
+    output: string;
+  };
+  playPreview: {
+    input: { titleId: string; title: string };
+    output: string;
+  };
+  startPlayback: {
+    input: { titleId: string; title: string };
+    output: string;
+  };
+  logFeedback: {
+    input: { sentiment: 'positive' | 'neutral' | 'negative'; notes?: string };
     output: string;
   };
 };

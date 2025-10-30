@@ -1,66 +1,17 @@
-# Human-in-the-Loop Agent with Vercel AI SDK
+# Netflix Human-in-the-Loop Voice Concierge
 
-A Next.js application demonstrating Human-in-the-Loop (HITL) functionality using the Vercel AI SDK. This allows users to approve or decline tool calls before they are executed.
+This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, voice-first agent that helps households pick what to watch. The assistant understands preferred genres, surfaces nostalgic vs. new options, and always requests explicit approval before playing previews or starting playback.
 
-## Features
+## Highlights
 
-- Human-in-the-Loop tool execution
-- Type-safe tool definitions
-- Real-time chat interface
-- Automatic tool call interception
-- User confirmation UI
+- Voice-centric UI with optional browser speech recognition and typed fallback
+- Netflix domain prompt engineering with OpenAI GPT models
+- Tooling for household context, recommendations, preview, playback, and feedback
+- Human-in-the-loop approvals for preview and playback actions
+- Rich media sidebar that reflects current preview and playback state
+- Netflix-inspired dark theming using open fonts and a custom palette
 
 ## Setup
 
-1. **Install dependencies:**
-   ```bash
-   npm install
+1. **Install dependencies**
    ```
-
-2. **Set up your OpenAI API key:**
-   
-   Copy the example environment file:
-   ```bash
-   cp .env.example .env.local
-   ```
-   
-   Then edit `.env.local` and add your OpenAI API key:
-   ```
-   OPENAI_API_KEY=your_actual_api_key_here
-   ```
-
-3. **Run the development server:**
-   ```bash
-   npm run dev
-   ```
-
-4. **Open your browser:**
-   
-   Navigate to [http://localhost:3000](http://localhost:3000)
-
-## How It Works
-
-1. When the AI agent wants to execute a tool (like `getWeatherInformation`), it sends a tool call to the frontend.
-2. The frontend intercepts the tool call and displays a confirmation UI with "Yes" and "No" buttons.
-3. The user can approve or decline the tool execution.
-4. Upon approval, the tool executes on the backend and returns the result.
-5. The result is sent back to the AI model for further processing.
-
-## Example Usage
-
-Try asking: "What's the weather like in New York?"
-
-The system will prompt you to confirm before executing the weather tool.
-
-## Project Structure
-
-- `app/page.tsx` - Main chat interface
-- `app/api/chat/route.ts` - API route handler
-- `app/api/chat/tools.ts` - Tool definitions
-- `app/api/chat/utils.ts` - Utility functions for processing tool calls
-- `app/api/chat/types.ts` - TypeScript type definitions
-
-## Reference
-
-Based on the [Vercel AI SDK Human-in-the-Loop guide](https://ai-sdk.dev/cookbook/next/human-in-the-loop).
-
