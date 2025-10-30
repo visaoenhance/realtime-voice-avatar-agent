@@ -17,7 +17,7 @@ Follow this flow:
 3. Call the tool \'searchLocalBackpacks\' with the collected details to retrieve options.
 4. Present the options clearly (mention id, name, price, vendor, distance). Ask the user to choose by id.
 5. After the user chooses an option, call the tool \'initiatePurchase\' with the selected item details.
-6. Wait for human approval before assuming the purchase is complete. If approved, acknowledge that the purchase has been initiated. If declined, ask whether to modify the selection or cancel.
+6. Wait for human approval before assuming the purchase is complete. If approved, acknowledge that the purchase has been initiated. If declined, reopen the selection flow by offering alternate options (re-run 'searchLocalBackpacks' if needed) or ask how they'd like to adjust the criteria. Never advance to purchase until they confirm.
 Keep responses concise and friendly. Do not guess inventory; always use the tool.`;
 
 // Allow streaming responses up to 30 seconds
@@ -26,7 +26,17 @@ export const maxDuration = 30;
 export async function POST(req: Request) {
   const { messages }: { messages: HumanInTheLoopUIMessage[] } =
     await req.json();
-  console.log('[api/chat] received', messages?.length ?? 0);
+  console.log(
+    '[api/chat] received',
+    messages?.length ?? 0,
+    messages?.map(m => {
+      const textParts = (m.parts ?? [])
+        .filter(part => part.type === 'text')
+        .map(part => part.text)
+        .join(' | ');
+      return `${m.id ?? 'no-id'}:${m.role}:${textParts}`;
+    }),
+  );
 
   const stream = createUIMessageStream({
     originalMessages: messages,

@@ -5,7 +5,7 @@ import { DefaultChatTransport, getToolName, isToolUIPart } from 'ai';
 import { useEffect, useMemo, useState } from 'react';
 import { tools } from './api/chat/tools';
 import { APPROVAL, getToolsRequiringConfirmation } from './api/chat/utils';
-import { HumanInTheLoopUIMessage, MyTools } from './api/chat/types';
+import { HumanInTheLoopUIMessage } from './api/chat/types';
 
 type StageOption =
   | string
@@ -18,7 +18,7 @@ type StageOption =
       description?: string;
     };
 
-const backpackCards: StageOption[] = [
+const DEFAULT_BACKPACK_CARDS: StageOption[] = [
   {
     value: 'bk-001',
     label: 'Mission District Daypack',
@@ -46,48 +46,80 @@ const backpackCards: StageOption[] = [
   },
 ];
 
-const stagesConfig = [
-  {
-    id: 'intent',
-    prompt: 'What can I help you with today?',
-    options: ['Buy a backpack', 'Track an order', 'Check inventory'] as StageOption[],
-    autofill: 'I want to buy a backpack.',
-  },
-  {
-    id: 'preference',
-    prompt: 'Do you have a preference for buying from a local vendor or online store?',
-    options: ['Local vendor', 'Online store'] as StageOption[],
-    autofill: 'Local vendor',
-  },
-  {
-    id: 'zip',
-    prompt: 'Great! What is your ZIP code so I can search for local options?',
-    options: ['94107', '10001', 'Enter manually'] as StageOption[],
-    autofill: '94107',
-  },
-  {
-    id: 'select',
-    prompt:
-      "I found some backpack options for you. Please provide the ID of the backpack you'd like to purchase.",
-    options: backpackCards,
-    autofill: 'bk-001',
-  },
-  {
-    id: 'confirm',
-    prompt: 'Does this option look right? I just need the backpack ID to initiate the purchase.',
-    options: ['Yes, please confirm the purchase.', 'No, show me other options.'] as StageOption[],
-    autofill: 'Yes, please confirm the purchase.',
-  },
+const AFFIRMATIVE_KEYWORDS = [
+  'yes',
+  'yep',
+  'yeah',
+  'sure',
+  'confirm',
+  'approved',
+  'absolutely',
+  'please confirm',
+  'sounds good',
+  'do it',
 ];
 
+const NEGATIVE_START_TOKENS = ['no', 'nah', 'nope', 'not', 'cancel', 'decline'];
+const NEGATIVE_PHRASES = [
+  'show me other',
+  'show me another',
+  'something else',
+  'different',
+  'another option',
+  'another backpack',
+  'another bag',
+  'another one',
+  'find another',
+  'try again',
+  'change',
+  "let's look at",
+];
+
+const normalizeResponse = (value?: string) =>
+  value
+    ?.toLowerCase()
+    .replace(/[-_,.!?]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim() ?? '';
+
+const isAffirmativeResponse = (value?: string) => {
+  const normalized = normalizeResponse(value);
+  if (!normalized) {
+    return false;
+  }
+
+  return AFFIRMATIVE_KEYWORDS.some(keyword =>
+    normalized === keyword || normalized.startsWith(`${keyword} `),
+  );
+};
+
+const isNegativeResponse = (value?: string) => {
+  const normalized = normalizeResponse(value);
+  if (!normalized) {
+    return false;
+  }
+
+  const [firstToken] = normalized.split(' ');
+  if (NEGATIVE_START_TOKENS.includes(firstToken)) {
+    return true;
+  }
+
+  if (normalized.startsWith('another ')) {
+    return true;
+  }
+
+  return NEGATIVE_PHRASES.some(phrase => normalized.includes(phrase));
+};
+
 export default function Chat() {
-  const { messages, addToolResult, sendMessage } =
+  const { messages, addToolResult, sendMessage, status } =
     useChat<HumanInTheLoopUIMessage>({
       transport: new DefaultChatTransport({ api: '/api/chat' }),
     });
   const [input, setInput] = useState('');
   const [stageResponses, setStageResponses] = useState<Record<string, string>>({});
   const [showDecisionTree, setShowDecisionTree] = useState(false);
+  const [thinkingStageId, setThinkingStageId] = useState<string | null>(null);
 
   const toolsRequiringConfirmation = getToolsRequiringConfirmation(tools);
 
@@ -119,7 +151,9 @@ export default function Chat() {
       m.parts?.some(
         part =>
           part.type === 'text' &&
-          /purchase has been initiated|receipt/i.test(part.text ?? ''),
+          /purchase has been initiated|purchase confirmed|receipt/i.test(
+            part.text ?? '',
+          ),
       ),
     );
 
@@ -137,27 +171,139 @@ export default function Chat() {
     };
   }, [messages, pendingToolCallConfirmation]);
 
+  const backpackOptions = useMemo(() => {
+    for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+      const message = messages[messageIndex];
+      if (!message?.parts) {
+        continue;
+      }
+
+      for (let partIndex = message.parts.length - 1; partIndex >= 0; partIndex -= 1) {
+        const part = message.parts[partIndex];
+        if (!isToolUIPart(part) || getToolName(part) !== 'searchLocalBackpacks') {
+          continue;
+        }
+
+        const rawOutput = (part as any).output ?? (part as any).result;
+
+        if (!rawOutput) {
+          continue;
+        }
+
+        try {
+          const parsed = typeof rawOutput === 'string' ? JSON.parse(rawOutput) : rawOutput;
+          const candidates = Array.isArray(parsed?.options)
+            ? parsed.options
+            : Array.isArray(parsed)
+            ? parsed
+            : [];
+
+          if (!Array.isArray(candidates) || candidates.length === 0) {
+            continue;
+          }
+
+          return candidates.map(candidate => ({
+            value: candidate.id,
+            label: candidate.name ?? candidate.id,
+            price: candidate.price,
+            vendor: candidate.vendor,
+            distance: candidate.distance,
+            description: candidate.description,
+          })) as StageOption[];
+        } catch (error) {
+          console.warn('Failed to parse backpack options from tool output', error);
+        }
+      }
+    }
+
+    return DEFAULT_BACKPACK_CARDS;
+  }, [messages]);
+
+  const selectedBackpack = useMemo(() => {
+    const selectedId = stageResponses.select?.trim();
+    if (!selectedId) {
+      return null;
+    }
+
+    const match = backpackOptions.find(
+      option => typeof option !== 'string' && option.value === selectedId,
+    );
+
+    return (match && typeof match !== 'string' ? match : null) as
+      | Extract<StageOption, { value: string }>
+      | null;
+  }, [backpackOptions, stageResponses.select]);
+
+  const confirmResponse = stageResponses.confirm;
+  const confirmApproved =
+    conversationStages.purchaseConfirmed || isAffirmativeResponse(confirmResponse);
+
   const stageCompletionMap: Record<string, boolean> = {
     intent: Boolean(stageResponses.intent),
     preference: Boolean(stageResponses.preference),
     zip: Boolean(stageResponses.zip),
     select: Boolean(stageResponses.select),
-    confirm: Boolean(stageResponses.confirm) || conversationStages.purchaseConfirmed,
+    confirm: confirmApproved,
   };
 
-  const activeStage = stagesConfig.find(stage => !stageCompletionMap[stage.id])?.id ?? null;
+  const stageConfig = useMemo(() => {
+    const firstBackpackId = backpackOptions.find(
+      option => typeof option !== 'string',
+    ) as Extract<StageOption, { value: string }> | undefined;
+
+    return [
+      {
+        id: 'intent',
+        prompt: 'What can I help you with today?',
+        options: ['Buy a backpack', 'Track an order', 'Check inventory'] as StageOption[],
+        autofill: 'I want to buy a backpack.',
+      },
+      {
+        id: 'preference',
+        prompt: 'Do you have a preference for buying from a local vendor or online store?',
+        options: ['Local vendor', 'Online store'] as StageOption[],
+        autofill: 'Local vendor',
+      },
+      {
+        id: 'zip',
+        prompt: 'Great! What is your ZIP code so I can search for local options?',
+        options: ['94107', '10001', 'Enter manually'] as StageOption[],
+        autofill: '94107',
+      },
+      {
+        id: 'select',
+        prompt:
+          "I found some backpack options for you. Please provide the ID of the backpack you'd like to purchase.",
+        options: backpackOptions,
+        autofill: firstBackpackId?.value ?? '',
+      },
+      {
+        id: 'confirm',
+        prompt:
+          'Does this option look right? I just need the backpack ID to initiate the purchase.',
+        options: ['Yes, please confirm the purchase.', 'No, show me other options.'] as StageOption[],
+        autofill: 'Yes, please confirm the purchase.',
+      },
+    ];
+  }, [backpackOptions]);
+
+  const activeStage = stageConfig.find(stage => !stageCompletionMap[stage.id])?.id ?? null;
 
   useEffect(() => {
     if (!activeStage) {
       return;
     }
-    const stage = stagesConfig.find(s => s.id === activeStage);
-    if (stage && stage.autofill) {
-      setInput(stage.autofill);
-    }
+    setInput('');
+    setThinkingStageId(null);
   }, [activeStage]);
 
-  const resolvedStages = stagesConfig.map(stage => {
+  useEffect(() => {
+    if (status === 'ready' || status === 'error') {
+      setThinkingStageId(null);
+    }
+  }, [status]);
+
+  const resolvedStages = stageConfig.map(stage => {
     const isCompleted = stageCompletionMap[stage.id];
     const isActive = activeStage === stage.id;
 
@@ -169,6 +315,39 @@ export default function Chat() {
       assistantText: stage.prompt,
     };
   });
+
+  const visibleStages = resolvedStages.filter(
+    stage => stage.isCompleted || stage.isActive,
+  );
+
+  const summaryItems = useMemo(() => {
+    return stageConfig
+      .map(stage => {
+        const response = stageResponses[stage.id];
+        if (!response) {
+          return null;
+        }
+
+        if (stage.id === 'select' && selectedBackpack) {
+          return {
+            id: stage.id,
+            label: stage.prompt,
+            detail: `${selectedBackpack.label} (${selectedBackpack.value.toUpperCase()}) from ${selectedBackpack.vendor} at $${selectedBackpack.price}`,
+          };
+        }
+
+        if (stage.id === 'confirm' && !confirmApproved) {
+          return null;
+        }
+
+        return {
+          id: stage.id,
+          label: stage.prompt,
+          detail: response,
+        };
+      })
+      .filter(Boolean) as Array<{ id: string; label: string; detail: string }>; 
+  }, [stageConfig, stageResponses, selectedBackpack, confirmApproved]);
 
   const decisionTreeContent = (
     <>
@@ -272,14 +451,6 @@ export default function Chat() {
 
   const currentStage = resolvedStages.find(stage => stage.isActive) ?? null;
 
-  useEffect(() => {
-    if (!currentStage) {
-      return;
-    }
-    if (!currentStage.isCompleted && currentStage.autofill) {
-      setInput(currentStage.autofill);
-    }
-  }, [currentStage]);
 
   const submitStageResponse = async (stageId: string, value: string) => {
     if (pendingToolCallConfirmation) {
@@ -289,8 +460,23 @@ export default function Chat() {
     if (!trimmed) {
       return;
     }
+    setThinkingStageId(stageId);
     await sendMessage({ text: trimmed });
-    setStageResponses(prev => ({ ...prev, [stageId]: trimmed }));
+    setStageResponses(prev => {
+      if (stageId === 'select') {
+        return { ...prev, select: trimmed, confirm: '' };
+      }
+
+      if (stageId === 'confirm') {
+        if (isNegativeResponse(trimmed)) {
+          return { ...prev, confirm: '', select: '' };
+        }
+
+        return { ...prev, confirm: trimmed };
+      }
+
+      return { ...prev, [stageId]: trimmed };
+    });
     setInput('');
   };
 
@@ -325,7 +511,7 @@ export default function Chat() {
       <header className="border-b border-zinc-200 bg-white shadow-sm">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
           <h1 className="text-lg font-semibold text-zinc-800 md:text-xl">
-            Human-in-the-Loop Backpack Demo
+            AI SDK - Human In the Loop
           </h1>
           <button
             onClick={() => setShowDecisionTree(true)}
@@ -338,7 +524,7 @@ export default function Chat() {
 
       <main className="mx-auto flex w-full max-w-6xl flex-col-reverse gap-6 px-6 py-6 md:flex-row md:py-10">
         <section className="flex-1 space-y-8">
-          {resolvedStages.map(stage => {
+          {visibleStages.map(stage => {
             const showOptions = stage.options.length > 0;
             const isCurrent = currentStage?.id === stage.id;
 
@@ -354,12 +540,34 @@ export default function Chat() {
                 }`}
               >
                 <div className="text-sm font-semibold text-blue-600 uppercase tracking-wide">
-                  {stage.isCompleted ? 'Completed step' : isCurrent ? 'In progress' : 'Upcoming'}
+                  {stage.isCompleted ? 'Completed step' : 'In progress'}
                 </div>
 
                 <div className="mt-2 text-base font-medium text-zinc-900">
                   {stage.assistantText}
                 </div>
+
+                {stage.id === 'confirm' && selectedBackpack && (
+                  <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
+                    <div className="text-xs uppercase tracking-wide text-zinc-500">
+                      Selected backpack
+                    </div>
+                    <div className="mt-2 text-base font-semibold text-zinc-900">
+                      {selectedBackpack.label}
+                    </div>
+                    <div>Vendor: {selectedBackpack.vendor}</div>
+                    <div>Price: ${selectedBackpack.price}</div>
+                    <div>Distance: {selectedBackpack.distance}</div>
+                    {selectedBackpack.description && (
+                      <div className="mt-2 text-sm text-zinc-500">
+                        {selectedBackpack.description}
+                      </div>
+                    )}
+                    <div className="mt-2 text-xs text-blue-600">
+                      Respond with ID <span className="font-semibold">{selectedBackpack.value.toUpperCase()}</span> to confirm.
+                    </div>
+                  </div>
+                )}
 
                 {stage.isCompleted && stage.userText && (
                   <div className="mt-3 text-sm text-zinc-600">
@@ -475,6 +683,68 @@ export default function Chat() {
               </div>
             );
           })}
+
+          {stageCompletionMap.confirm && summaryItems.length > 0 && (
+            <div className="rounded-2xl border border-green-200 bg-green-50 px-6 py-6 shadow-sm">
+              <div className="text-sm font-semibold uppercase tracking-wide text-green-600">
+                Session summary
+              </div>
+              <p className="mt-2 text-sm text-green-700">
+                Here is how the agent guided this purchase:
+              </p>
+              <ol className="mt-4 space-y-3 text-sm text-green-800">
+                {summaryItems.map(item => (
+                  <li key={item.id} className="rounded-md bg-white/60 px-3 py-2 shadow-sm">
+                    <div className="text-xs uppercase tracking-wide text-green-500">
+                      {item.label}
+                    </div>
+                    <div className="mt-1 font-medium text-green-900">
+                      {item.detail}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+
+              {selectedBackpack && (
+                <div className="mt-4 rounded-md border border-green-300 bg-white px-3 py-3 text-sm text-green-800">
+                  <div className="text-xs uppercase tracking-wide text-green-500">
+                    Final decision
+                  </div>
+                  <div className="mt-1 font-semibold text-green-900">
+                    Initiated purchase for {selectedBackpack.label} ({selectedBackpack.value.toUpperCase()})
+                  </div>
+                  <div>Vendor: {selectedBackpack.vendor}</div>
+                  <div>Price: ${selectedBackpack.price}</div>
+                </div>
+              )}
+
+              <div className="mt-4 text-xs text-green-600">
+                The agent collected your intent, vendor preference, and ZIP code, then called `searchLocalBackpacks` to gather options. Your approval of `initiatePurchase` completed the flow.
+              </div>
+            </div>
+          )}
+
+          {thinkingStageId &&
+            (status === 'submitted' || status === 'streaming') &&
+            !pendingToolCallConfirmation && (
+            <div className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600 shadow-sm">
+              <span className="flex h-3 w-12 items-end justify-between">
+                <span
+                  className="h-full w-2 animate-bounce rounded-full bg-blue-500"
+                  style={{ animationDelay: '0ms' }}
+                />
+                <span
+                  className="h-full w-2 animate-bounce rounded-full bg-blue-500"
+                  style={{ animationDelay: '150ms' }}
+                />
+                <span
+                  className="h-full w-2 animate-bounce rounded-full bg-blue-500"
+                  style={{ animationDelay: '300ms' }}
+                />
+              </span>
+              Thinking...
+            </div>
+          )}
 
           {pendingToolCallConfirmation && (
             <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
