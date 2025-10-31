@@ -449,11 +449,12 @@ export default function Chat() {
 
       const now = Date.now();
       if (!options.bypassThrottle && now - lastSendRef.current < MIN_MESSAGE_INTERVAL) {
-        console.info('Throttling user message to avoid rapid repeats');
+        console.info('[chat] throttled outgoing message');
         return;
       }
 
       if (sendInFlightRef.current) {
+        console.info('[chat] send in flight, queueing next message');
         queuedMessageRef.current = trimmed;
         return;
       }
@@ -461,6 +462,7 @@ export default function Chat() {
       sendInFlightRef.current = true;
       setIsSending(true);
       lastSendRef.current = now;
+      console.info('[chat] sending message', trimmed);
 
       try {
         await sendMessage({ text: trimmed });

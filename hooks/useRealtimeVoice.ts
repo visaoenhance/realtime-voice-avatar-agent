@@ -2,6 +2,26 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+const DEBUG = true;
+
+function log(...args: any[]) {
+  if (DEBUG) {
+    console.info('[realtime]', ...args);
+  }
+}
+
+function warn(...args: any[]) {
+  if (DEBUG) {
+    console.warn('[realtime]', ...args);
+  }
+}
+
+function error(...args: any[]) {
+  if (DEBUG) {
+    console.error('[realtime]', ...args);
+  }
+}
+
 type RealtimeStatus =
   | 'idle'
   | 'connecting'
@@ -62,6 +82,7 @@ export function useRealtimeVoice({
   const disconnect = useCallback(() => {
     cleanupPeerConnection();
     setStatus(isSupported ? 'disconnected' : 'error');
+    log('Disconnected realtime session');
   }, [cleanupPeerConnection, isSupported]);
 
   useEffect(() => () => disconnect(), [disconnect]);
@@ -81,6 +102,7 @@ export function useRealtimeVoice({
       audio.srcObject = null;
       document.body.removeChild(audio);
       remoteAudioRef.current = null;
+      log('Disposed remote audio element');
     };
   }, []);
 
@@ -88,6 +110,7 @@ export function useRealtimeVoice({
     (text: string) => {
       const trimmed = text.trim();
       if (trimmed) {
+        log('Final transcript ready', trimmed);
         onFinalTranscript(trimmed);
       }
       partialRef.current = '';
@@ -118,6 +141,7 @@ export function useRealtimeVoice({
       if (!client_secret) {
         throw new Error('Realtime key missing from response');
       }
+      log('Ephemeral key obtained');
 
       const pc = new RTCPeerConnection({
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -128,6 +152,7 @@ export function useRealtimeVoice({
       dataChannelRef.current = dataChannel;
 
       dataChannel.onopen = () => {
+        log('Realtime data channel open');
         dataChannel.send(
           JSON.stringify({
             type: 'session.update',
@@ -163,14 +188,16 @@ export function useRealtimeVoice({
             }
             case 'input_audio_buffer.speech_started': {
               setStatus('listening');
+              log('Speech started');
               break;
             }
             case 'input_audio_buffer.speech_stopped': {
               setStatus(prev => (prev === 'listening' ? 'processing' : prev));
+              log('Speech stopped');
               break;
             }
             case 'error': {
-              console.warn('Realtime error', message);
+              warn('Realtime error', message);
               setError(message.error?.message ?? 'Realtime session error');
               setStatus('error');
               break;
@@ -179,12 +206,12 @@ export function useRealtimeVoice({
               break;
           }
         } catch (err) {
-          console.warn('Failed to parse realtime message', err, data);
+          warn('Failed to parse realtime message', err, data);
         }
       };
 
       dataChannel.onerror = event => {
-        console.warn('Realtime datachannel error', event);
+        warn('Realtime datachannel error', event);
         setError('Realtime data channel error');
         setStatus('error');
       };
@@ -198,6 +225,7 @@ export function useRealtimeVoice({
         } else {
           remoteAudio.srcObject = new MediaStream([event.track]);
         }
+        log('Received remote audio track');
       };
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -206,6 +234,7 @@ export function useRealtimeVoice({
         track.enabled = false;
         pc.addTrack(track, stream);
       });
+      log('Microphone stream initialized');
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -243,9 +272,10 @@ export function useRealtimeVoice({
       const answer = await sdpResponse.text();
       await pc.setRemoteDescription({ type: 'answer', sdp: answer });
 
+      log('Realtime session ready');
       setStatus('ready');
     } catch (err) {
-      console.error('Realtime connection failed', err);
+      error('Realtime connection failed', err);
       setError((err as Error).message ?? 'Realtime connection failed');
       cleanupPeerConnection();
       setStatus('error');
@@ -279,6 +309,7 @@ export function useRealtimeVoice({
     dataChannelRef.current.send(JSON.stringify({ type: 'input_audio_buffer.clear' }));
     listeningRef.current = true;
     setStatus('listening');
+    log('Listening started');
   }, [connect, isSupported, onPartialTranscript]);
 
   const stopListening = useCallback(() => {
@@ -298,6 +329,7 @@ export function useRealtimeVoice({
 
     listeningRef.current = false;
     setStatus('processing');
+    log('Listening stopped, committing buffer');
 
     dataChannelRef.current.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
     dataChannelRef.current.send(
