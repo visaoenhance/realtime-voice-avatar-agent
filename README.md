@@ -4,7 +4,7 @@ This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, vo
 
 ## Highlights
 
-- Voice-centric UI with optional browser speech recognition and typed fallback
+- Voice-centric UI with OpenAI Realtime capture (with typed fallback for unsupported browsers)
 - Netflix domain prompt engineering with OpenAI GPT models
 - Tooling for household context, recommendations, preview, playback, and feedback
 - Human-in-the-loop approvals for preview and playback actions
@@ -33,9 +33,8 @@ This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, vo
 3. **Point preview clips at your Mux assets**
    Edit `data/muxTrailers.ts` and update the `playbackId` / `poster` pairs for each title with the playback IDs from your Mux dashboard.
 
-4. **Run the dev server**
-   ```bash
-   npm run dev
-   ```
+4. **Launch the experience**
+   Visit [http://localhost:3000](http://localhost:3000) and allow microphone access to try the voice flow.
+   The microphone button uses OpenAI Realtime for push-to-talk capture. If the browser blocks WebRTC/mic access, switch to typing (the concierge will still speak responses).
 
 5. When ready to commit, say "Let's watch this"; the assistant triggers `startPlayback`, again asking for approval before confirming the stream is live and speaking the confirmation aloud (unless muted).

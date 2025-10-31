@@ -125,4 +125,9 @@
 - ✅ Stabilize OpenAI TTS playback by queueing utterances, logging `audio.play()` failures, and avoiding abrupt stops when the user reopens the mic.
 - ✅ Enforce English TTS output by passing `voice: 'alloy'` with `language: 'en'` and trimming speech to concise summaries before playback.
 - ✅ Shorten spoken replies to the first ~3 sentences so confirmations are snappy while the full text remains in chat.
+- 🔄 Migrate speech capture to OpenAI Realtime.
+  - Implement ephemeral key route (`/api/openai/realtime-key`).
+  - Create `useRealtimeVoice` to manage WebRTC, transcripts, and assistant audio.
+  - Rate-limit outgoing chat requests and surface status/error UI to avoid runaway loops.
+  - Provide fallback to manual typing if Realtime initialization fails.
 

@@ -2,12 +2,13 @@
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, getToolName, isToolUIPart } from 'ai';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { tools } from './api/chat/tools';
 import { APPROVAL, getToolsRequiringConfirmation } from './api/chat/utils';
 import { HumanInTheLoopUIMessage } from './api/chat/types';
 import { MuxPreviewPlayer } from '@/components/MuxPreviewPlayer';
 import { useAssistantSpeech } from '@/hooks/useAssistantSpeech';
+import { useRealtimeVoice } from '@/hooks/useRealtimeVoice';
 
 type HouseholdProfilePayload = {
   profile?: {
@@ -140,10 +141,13 @@ export default function Chat() {
     });
 
   const [input, setInput] = useState('');
-  const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [voiceSupported, setVoiceSupported] = useState(false);
-  const recognitionRef = useRef<any>(null);
+  const [isSending, setIsSending] = useState(false);
+
+  const queuedMessageRef = useRef<string | null>(null);
+  const sendInFlightRef = useRef(false);
+  const lastSendRef = useRef(0);
+  const MIN_MESSAGE_INTERVAL = 750;
 
   const {
     speak: speakAssistant,
@@ -181,130 +185,19 @@ export default function Chat() {
   );
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (!transcript) {
       return;
     }
-
-    const SpeechRecognitionClass =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognitionClass) {
-      setVoiceSupported(false);
-      return;
-    }
-
-    setVoiceSupported(true);
-    const recognition = new SpeechRecognitionClass();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = 'en-US';
-    recognition.onresult = (event: any) => {
-      const text = event.results?.[0]?.[0]?.transcript;
-      if (typeof text === 'string' && text.trim()) {
-        setTranscript(text);
-        void submitMessage(text);
-      }
-    };
-    recognition.onerror = (event: any) => {
-      console.warn('Speech recognition error', event?.error);
-      recognition.stop();
-      setIsListening(false);
-    };
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognitionRef.current = recognition;
-
     return () => {
-      recognition.stop();
+      setTranscript('');
     };
   }, []);
 
   useEffect(() => {
-    if (!isListening && transcript) {
+    if (!isSending && transcript) {
       setTranscript('');
     }
-  }, [isListening, transcript]);
-
-  useEffect(() => {
-    const lastAssistant = [...messages]
-      .reverse()
-      .find(message =>
-        message.role === 'assistant' &&
-        message.parts?.some(part => part.type === 'text' && part.text?.trim()),
-      );
-
-    if (!lastAssistant) {
-      return;
-    }
-
-    const messageId = lastAssistant.id ?? `assistant-${messages.length}`;
-    if (lastUtteranceId === messageId) {
-      return;
-    }
-
-    if (isAssistantMuted) {
-      return;
-    }
-
-    const fullText = (lastAssistant.parts ?? [])
-      .map(part => (part.type === 'text' && part.text ? part.text : ''))
-      .filter(Boolean)
-      .join(' ')
-      .trim();
-
-    if (!fullText) {
-      return;
-    }
-
-    const sentences = fullText.split(/(?<=[.!?])\s+/).filter(Boolean);
-    const trimmed = sentences.slice(0, 3).join(' ').trim();
-
-    const speechText = trimmed || sentences[0] || fullText;
-    speakAssistant(messageId, speechText);
-  }, [messages, lastUtteranceId, isAssistantMuted, speakAssistant]);
-
-  const submitMessage = async (value: string) => {
-    if (pendingToolCallConfirmation) {
-      return;
-    }
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return;
-    }
-
-    setInput('');
-    await sendMessage({ text: trimmed });
-  };
-
-  const handleStartListening = () => {
-    if (pendingToolCallConfirmation || !recognitionRef.current) {
-      return;
-    }
-
-    stopAssistantSpeech();
-
-    try {
-      try {
-        recognitionRef.current.abort();
-      } catch (abortError) {
-        // Safe to ignore if recognition wasn't active
-      }
-      recognitionRef.current.start();
-      setIsListening(true);
-    } catch (error) {
-      console.warn('Unable to start speech recognition', error);
-    }
-  };
-
-  const handleStopListening = () => {
-    if (!recognitionRef.current) {
-      return;
-    }
-    recognitionRef.current.stop();
-    setIsListening(false);
-  };
+  }, [isSending, transcript]);
 
   const renderToolResult = (toolName: string, rawOutput: unknown) => {
     switch (toolName) {
@@ -497,6 +390,164 @@ export default function Chat() {
     );
   };
 
+  useEffect(() => {
+    const lastAssistant = [...messages]
+      .reverse()
+      .find(message =>
+        message.role === 'assistant' &&
+        message.parts?.some(part => part.type === 'text' && part.text?.trim()),
+      );
+
+    if (!lastAssistant) {
+      return;
+    }
+
+    const messageId = lastAssistant.id ?? `assistant-${messages.length}`;
+    if (lastUtteranceId === messageId) {
+      return;
+    }
+
+    if (isAssistantMuted) {
+      return;
+    }
+
+    const fullText = (lastAssistant.parts ?? [])
+      .map(part => (part.type === 'text' && part.text ? part.text : ''))
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    if (!fullText) {
+      return;
+    }
+
+    const sentences = fullText.split(/(?<=[.!?])\s+/).filter(Boolean);
+    const trimmed = sentences.slice(0, 3).join(' ').trim();
+
+    const speechText = trimmed || sentences[0] || fullText;
+    speakAssistant(messageId, speechText);
+  }, [messages, lastUtteranceId, isAssistantMuted, speakAssistant]);
+
+  const submitMessage = useCallback(
+    async (
+      value: string,
+      options: { bypassThrottle?: boolean; clearInput?: boolean } = {},
+    ) => {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return;
+      }
+
+      if (options.clearInput) {
+        setInput('');
+      }
+
+      if (pendingToolCallConfirmation) {
+        queuedMessageRef.current = trimmed;
+        return;
+      }
+
+      const now = Date.now();
+      if (!options.bypassThrottle && now - lastSendRef.current < MIN_MESSAGE_INTERVAL) {
+        console.info('Throttling user message to avoid rapid repeats');
+        return;
+      }
+
+      if (sendInFlightRef.current) {
+        queuedMessageRef.current = trimmed;
+        return;
+      }
+
+      sendInFlightRef.current = true;
+      setIsSending(true);
+      lastSendRef.current = now;
+
+      try {
+        await sendMessage({ text: trimmed });
+      } finally {
+        sendInFlightRef.current = false;
+        setIsSending(false);
+        const next = queuedMessageRef.current;
+        queuedMessageRef.current = null;
+        if (next) {
+          void submitMessage(next, { bypassThrottle: true });
+        }
+      }
+    },
+    [MIN_MESSAGE_INTERVAL, pendingToolCallConfirmation, sendMessage],
+  );
+
+  const handlePartialTranscript = useCallback((partial: string) => {
+    setTranscript(partial);
+  }, []);
+
+  const handleFinalTranscript = useCallback(
+    (text: string) => {
+      stopAssistantSpeech();
+      void submitMessage(text);
+    },
+    [stopAssistantSpeech, submitMessage],
+  );
+
+  const {
+    status: voiceStatus,
+    error: voiceError,
+    isSupported: voiceSupported,
+    startListening,
+    stopListening,
+  } = useRealtimeVoice({
+    onFinalTranscript: handleFinalTranscript,
+    onPartialTranscript: handlePartialTranscript,
+  });
+
+  const isListening = voiceStatus === 'listening';
+  const isProcessingVoice = voiceStatus === 'processing';
+  const micDisabled =
+    !voiceSupported ||
+    pendingToolCallConfirmation ||
+    voiceStatus === 'connecting' ||
+    voiceStatus === 'error';
+
+  const voiceStatusText = useMemo(() => {
+    switch (voiceStatus) {
+      case 'connecting':
+        return 'Connecting microphone…';
+      case 'listening':
+        return 'Listening… share what you feel like watching.';
+      case 'processing':
+        return 'Processing what you said…';
+      case 'ready':
+        return 'Tap to ask for a recommendation or share a vibe.';
+      case 'disconnected':
+        return 'Tap to reconnect and share a vibe.';
+      case 'error':
+        return voiceError ?? 'Voice capture unavailable in this browser.';
+      default:
+        return 'Tap to ask for a recommendation or share a vibe.';
+    }
+  }, [voiceError, voiceStatus]);
+
+  const handleMicButton = useCallback(() => {
+    if (!voiceSupported || pendingToolCallConfirmation) {
+      return;
+    }
+
+    if (isListening || isProcessingVoice) {
+      stopListening();
+    } else {
+      stopAssistantSpeech();
+      void startListening();
+    }
+  }, [
+    isListening,
+    isProcessingVoice,
+    pendingToolCallConfirmation,
+    startListening,
+    stopAssistantSpeech,
+    stopListening,
+    voiceSupported,
+  ]);
+
   return (
     <div className="min-h-screen bg-netflix-black text-netflix-gray-100">
       <header className="border-b border-zinc-900/80 bg-black/40">
@@ -540,20 +591,18 @@ export default function Chat() {
                   Voice link
                 </div>
                 <p className="mt-1 text-lg font-medium text-netflix-gray-100">
-                  {isListening
-                    ? 'Listening… share what you feel like watching.'
-                    : 'Tap to ask for a recommendation or share a vibe.'}
+                  {voiceStatusText}
                 </p>
               </div>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={isListening ? handleStopListening : handleStartListening}
-                  disabled={!voiceSupported || pendingToolCallConfirmation}
+                  onClick={handleMicButton}
+                  disabled={micDisabled}
                   className={`inline-flex h-14 w-14 items-center justify-center rounded-full border text-lg font-semibold transition ${
                     isListening
                       ? 'border-netflix-red bg-netflix-red text-white shadow-[0_12px_30px_rgba(229,9,20,0.25)] hover:bg-[#b20710]'
-                      : voiceSupported && !pendingToolCallConfirmation
+                      : !micDisabled
                       ? 'border-netflix-red bg-netflix-red text-white shadow-[0_12px_30px_rgba(229,9,20,0.2)] hover:bg-[#b20710]'
                       : 'border-zinc-700 bg-zinc-800 text-netflix-gray-500'
                   }`}
@@ -562,9 +611,11 @@ export default function Chat() {
                 </button>
                 <div className="text-xs text-netflix-gray-500">
                   {voiceSupported
-                    ? pendingToolCallConfirmation
-                      ? 'Approve or decline the current step to keep talking.'
-                      : 'Powered by browser speech recognition.'
+                    ? voiceError
+                      ? voiceError
+                      : isProcessingVoice
+                      ? 'Transcribing your request with OpenAI Realtime…'
+                      : 'Powered by OpenAI Realtime voice.'
                     : 'Voice capture unavailable in this browser.'}
                 </div>
               </div>
@@ -574,7 +625,7 @@ export default function Chat() {
               className="mt-6 flex flex-col gap-3 md:flex-row"
               onSubmit={event => {
                 event.preventDefault();
-                void submitMessage(input);
+                void submitMessage(input, { clearInput: true });
               }}
             >
               <input
@@ -590,10 +641,10 @@ export default function Chat() {
               />
               <button
                 type="submit"
-                disabled={pendingToolCallConfirmation || !input.trim()}
+                disabled={pendingToolCallConfirmation || !input.trim() || isSending}
                 className="rounded-2xl bg-netflix-red px-6 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(229,9,20,0.25)] transition hover:bg-[#b20710] disabled:cursor-not-allowed disabled:bg-zinc-700"
               >
-                Send
+                {isSending ? 'Sending…' : 'Send'}
               </button>
             </form>
 
