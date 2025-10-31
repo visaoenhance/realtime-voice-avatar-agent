@@ -7,6 +7,7 @@ import { tools } from './api/chat/tools';
 import { APPROVAL, getToolsRequiringConfirmation } from './api/chat/utils';
 import { HumanInTheLoopUIMessage } from './api/chat/types';
 import { MuxPreviewPlayer } from '@/components/MuxPreviewPlayer';
+import { useAssistantSpeech } from '@/hooks/useAssistantSpeech';
 
 type HouseholdProfilePayload = {
   profile?: {
@@ -144,6 +145,15 @@ export default function Chat() {
   const [voiceSupported, setVoiceSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
 
+  const {
+    speak: speakAssistant,
+    toggleMute: toggleAssistantMute,
+    isMuted: isAssistantMuted,
+    isSpeaking: assistantIsSpeaking,
+    lastUtteranceId,
+    stop: stopAssistantSpeech,
+  } = useAssistantSpeech({ defaultMuted: false, voice: 'alloy' });
+
   const toolsRequiringConfirmation = getToolsRequiringConfirmation(tools);
 
   const pendingToolCallConfirmation = messages.some(m =>
@@ -217,6 +227,40 @@ export default function Chat() {
     }
   }, [isListening, transcript]);
 
+  useEffect(() => {
+    const lastAssistant = [...messages]
+      .reverse()
+      .find(message =>
+        message.role === 'assistant' &&
+        message.parts?.some(part => part.type === 'text' && part.text?.trim()),
+      );
+
+    if (!lastAssistant) {
+      return;
+    }
+
+    const messageId = lastAssistant.id ?? `assistant-${messages.length}`;
+    if (lastUtteranceId === messageId) {
+      return;
+    }
+
+    if (isAssistantMuted) {
+      return;
+    }
+
+    const text = (lastAssistant.parts ?? [])
+      .map(part => (part.type === 'text' && part.text ? part.text : ''))
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    if (!text) {
+      return;
+    }
+
+    speakAssistant(messageId, text);
+  }, [messages, lastUtteranceId, isAssistantMuted, speakAssistant]);
+
   const submitMessage = async (value: string) => {
     if (pendingToolCallConfirmation) {
       return;
@@ -234,7 +278,15 @@ export default function Chat() {
     if (pendingToolCallConfirmation || !recognitionRef.current) {
       return;
     }
+
+    stopAssistantSpeech();
+
     try {
+      try {
+        recognitionRef.current.abort();
+      } catch (abortError) {
+        // Safe to ignore if recognition wasn't active
+      }
       recognitionRef.current.start();
       setIsListening(true);
     } catch (error) {
@@ -453,8 +505,24 @@ export default function Chat() {
               Voice Concierge
             </h1>
           </div>
-          <div className="hidden text-xs text-netflix-gray-300 md:block">
-            Human-in-the-loop approvals keep playback in your hands.
+          <div className="flex items-center gap-3 text-xs text-netflix-gray-300">
+            <span className="hidden md:block">
+              Human-in-the-loop approvals keep playback in your hands.
+            </span>
+            <button
+              type="button"
+              onClick={toggleAssistantMute}
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 font-semibold transition ${
+                isAssistantMuted
+                  ? 'border-zinc-700 bg-zinc-800 text-netflix-gray-300 hover:border-zinc-500'
+                  : 'border-netflix-red bg-netflix-red text-white hover:bg-[#b20710]'
+              }`}
+            >
+              <span>{isAssistantMuted ? 'Enable Voice' : 'Mute Voice'}</span>
+              {!isAssistantMuted && assistantIsSpeaking && (
+                <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
+              )}
+            </button>
           </div>
         </div>
       </header>

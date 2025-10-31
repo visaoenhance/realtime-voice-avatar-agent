@@ -10,6 +10,7 @@ This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, vo
 - Human-in-the-loop approvals for preview and playback actions
 - Rich media sidebar that reflects current preview and playback state
 - Netflix-inspired dark theming using open fonts and a custom palette
+- Spoken concierge replies powered by OpenAI TTS with a mute toggle
 
 ## Setup
 
@@ -36,3 +37,5 @@ This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, vo
    ```bash
    npm run dev
    ```
+
+5. When ready to commit, say "Let's watch this"; the assistant triggers `startPlayback`, again asking for approval before confirming the stream is live and speaking the confirmation aloud (unless muted).
