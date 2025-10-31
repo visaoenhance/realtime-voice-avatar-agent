@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { tools } from './api/chat/tools';
 import { APPROVAL, getToolsRequiringConfirmation } from './api/chat/utils';
 import { HumanInTheLoopUIMessage } from './api/chat/types';
+import { MuxPreviewPlayer } from '@/components/MuxPreviewPlayer';
 
 type HouseholdProfilePayload = {
   profile?: {
@@ -38,8 +39,10 @@ type PreviewPayload = {
   status?: string;
   titleId?: string;
   title?: string;
+  playbackId?: string;
   previewUrl?: string;
   backdropUrl?: string;
+  poster?: string;
   message?: string;
 };
 
@@ -47,6 +50,7 @@ type PlaybackPayload = {
   status?: string;
   titleId?: string;
   title?: string;
+  playbackId?: string;
   runtimeMinutes?: number;
   message?: string;
 };
@@ -619,13 +623,28 @@ export default function Chat() {
                   <div className="text-xs uppercase tracking-[0.3em] text-netflix-gray-300">
                     Preview
                   </div>
-                  <div className="mt-2 text-xl font-semibold">
-                    {latestPreview.title ?? latestPreview.titleId ?? 'Unknown title'}
+                  <div className="mt-3">
+                    {latestPreview.playbackId ? (
+                      <MuxPreviewPlayer
+                        playbackId={latestPreview.playbackId}
+                        title={latestPreview.title ?? latestPreview.titleId ?? 'Preview'}
+                        poster={latestPreview.poster ?? latestPreview.backdropUrl}
+                      />
+                    ) : latestPreview.previewUrl ? (
+                      <video
+                        key={latestPreview.previewUrl}
+                        className="w-full rounded-xl border border-black/40"
+                        src={latestPreview.previewUrl}
+                        controls
+                        autoPlay
+                        playsInline
+                      />
+                    ) : null}
                   </div>
-                  <p className="mt-3 text-sm text-netflix-gray-300 opacity-80">
+                  <div className="mt-3 text-sm text-netflix-gray-300 opacity-80">
                     {latestPreview.message ??
                       'Your preview is playing on the TV. Tap Play Now on-screen or ask me to start it.'}
-                  </p>
+                  </div>
                   <div className="mt-4 flex flex-wrap gap-3">
                     <button
                       type="button"

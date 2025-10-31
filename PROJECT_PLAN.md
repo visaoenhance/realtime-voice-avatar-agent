@@ -109,4 +109,15 @@
 - Updated HITL routing logic and system prompt to enforce the Netflix voice concierge dialogue.
 - Rebuilt the frontend into a voice-first interface with microphone controls, transcript display, confirmation cards, and media sidebar reflecting preview/playback state.
 - Applied Netflix-inspired theming (palette, typography, header treatment) while relying on open-source fonts and custom styles rather than proprietary assets.
+- Integrated Mux-based preview playback via `data/muxTrailers.ts` and a reusable `MuxPreviewPlayer` component for configurable trailers.
+
+### Voice Enhancements Roadmap
+- Replace the browser Web Speech API with OpenAI Realtime for cross-browser speech-to-text consistency.
+  - Add `app/api/openai/realtime-key` to mint ephemeral session keys using `OPENAI_API_KEY`.
+  - Build a client `RealtimeVoiceClient` hook/component that manages the WebRTC connection, streams microphone audio, and emits transcripts.
+  - Feed finalized transcripts into the existing chat loop (`sendMessage`) while preserving HITL approvals.
+- Enable spoken concierge responses for a fully conversational loop.
+  - Use the Realtime session (or `responses` with `gpt-4o-mini-tts`) to synthesize audio for assistant messages.
+  - Play responses through the UI with a mute/unmute toggle so households can switch between spoken and silent modes.
+- Goal: allow end-to-end voice navigation—user speaks to the concierge, approvals gate actions, and the agent replies audibly unless muted.
 

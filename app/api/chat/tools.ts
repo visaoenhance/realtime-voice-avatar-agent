@@ -1,5 +1,6 @@
 import { tool } from 'ai';
 import { z } from 'zod';
+import { muxTrailers } from '@/data/muxTrailers';
 
 export type HouseholdProfile = {
   primaryViewer: string;
@@ -22,7 +23,11 @@ export type NetflixTitle = {
   backdropUrl: string;
   cast: string[];
   tags: string[];
+  previewPlaybackId?: string;
+  previewPoster?: string;
 };
+
+const MUX_FALLBACK_PREVIEW = 'https://storage.googleapis.com/muxdemofiles/mux-video-intro.mp4';
 
 const householdProfile: HouseholdProfile = {
   primaryViewer: 'Emilio',
@@ -32,6 +37,14 @@ const householdProfile: HouseholdProfile = {
   favoriteActors: ['Keanu Reeves', 'Charlton Heston', 'Michelle Yeoh'],
   typicalSessionLengthMinutes: 110,
 };
+
+function getMuxPreviewConfig(id: string, fallbackPoster: string) {
+  const config = muxTrailers[id];
+  return {
+    previewPlaybackId: config?.playbackId ?? '',
+    previewPoster: config?.poster ?? fallbackPoster,
+  };
+}
 
 export const netflixCatalog: NetflixTitle[] = [
   {
@@ -43,10 +56,14 @@ export const netflixCatalog: NetflixTitle[] = [
       'An astronaut crew crash-lands on a mysterious planet ruled by intelligent apes and struggles to survive and uncover the truth.',
     runtimeMinutes: 112,
     nostalgia: true,
-    previewUrl: 'https://example.com/previews/planet-of-the-apes-1968.mp4',
+    previewUrl: MUX_FALLBACK_PREVIEW,
     backdropUrl: 'https://images.unsplash.com/photo-1527766833261-b09c3163a791?auto=format&fit=crop&w=1200&q=80',
     cast: ['Charlton Heston', 'Roddy McDowall', 'Kim Hunter'],
     tags: ['Classic', 'Thought-Provoking', 'Post-Apocalyptic'],
+    ...getMuxPreviewConfig(
+      'planet-of-the-apes-1968',
+      'https://image.mux.com/nhsfOna5SHcWQDIG01V6CbLC7BLZCd1jZZ01qoJADTn2w/thumbnail.png?width=214&height=121&time=5',
+    ),
   },
   {
     id: 'beneath-the-planet-of-the-apes-1970',
@@ -57,10 +74,14 @@ export const netflixCatalog: NetflixTitle[] = [
       'The sole survivor of an interstellar rescue mission searches for the missing crew only to discover a subterranean world.',
     runtimeMinutes: 95,
     nostalgia: true,
-    previewUrl: 'https://example.com/previews/beneath-the-planet-of-the-apes-1970.mp4',
+    previewUrl: MUX_FALLBACK_PREVIEW,
     backdropUrl: 'https://images.unsplash.com/photo-1525182008055-f88b95ff7980?auto=format&fit=crop&w=1200&q=80',
     cast: ['James Franciscus', 'Charlton Heston', 'Maurice Evans'],
     tags: ['Classic', 'Sequel', 'Cult Favorite'],
+    ...getMuxPreviewConfig(
+      'beneath-the-planet-of-the-apes-1970',
+      'https://image.mux.com/gfMPYMD3Ij02k68uZKR9Hokz02oybo01sLrSijrXMhMb3Y/thumbnail.png?width=214&height=121&time=2',
+    ),
   },
   {
     id: 'the-matrix-1999',
@@ -71,10 +92,14 @@ export const netflixCatalog: NetflixTitle[] = [
       'A hacker discovers the true nature of his reality and his role in a war against its controllers.',
     runtimeMinutes: 136,
     nostalgia: true,
-    previewUrl: 'https://example.com/previews/the-matrix-1999.mp4',
+    previewUrl: MUX_FALLBACK_PREVIEW,
     backdropUrl: 'https://images.unsplash.com/photo-1488229297570-58520851e868?auto=format&fit=crop&w=1200&q=80',
     cast: ['Keanu Reeves', 'Carrie-Anne Moss', 'Laurence Fishburne'],
     tags: ['Cult', 'Mind-Bending', 'Martial Arts'],
+    ...getMuxPreviewConfig(
+      'the-matrix-1999',
+      'https://image.mux.com/02lppsvzZjH01YT029co6BTeMvTrx8c4psMsD9nF7Iw5qo/thumbnail.png?width=214&height=121&time=2',
+    ),
   },
   {
     id: 'rebel-moon-2023',
@@ -85,10 +110,14 @@ export const netflixCatalog: NetflixTitle[] = [
       'A peaceful colony on the edge of a galaxy is threatened by armies of a tyrannical regent.',
     runtimeMinutes: 134,
     nostalgia: false,
-    previewUrl: 'https://example.com/previews/rebel-moon-2023.mp4',
+    previewUrl: MUX_FALLBACK_PREVIEW,
     backdropUrl: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
     cast: ['Sofia Boutella', 'Charlie Hunnam'],
     tags: ['New Release', 'Epic', 'Space Opera'],
+    ...getMuxPreviewConfig(
+      'rebel-moon-2023',
+      'https://image.mux.com/7sMT6EvtnbEotftDT3apwdQKsocf01n02U8LNKT7VF68k/thumbnail.png?width=214&height=121&time=5',
+    ),
   },
   {
     id: 'everything-everywhere-all-at-once-2022',
@@ -99,10 +128,14 @@ export const netflixCatalog: NetflixTitle[] = [
       'An aging Chinese immigrant is swept up in an insane adventure across the multiverse where she alone can save whats important to her.',
     runtimeMinutes: 140,
     nostalgia: false,
-    previewUrl: 'https://example.com/previews/everything-everywhere-all-at-once-2022.mp4',
+    previewUrl: MUX_FALLBACK_PREVIEW,
     backdropUrl: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80',
     cast: ['Michelle Yeoh', 'Ke Huy Quan'],
     tags: ['Award-Winning', 'Heartfelt', 'Multiverse'],
+    ...getMuxPreviewConfig(
+      'everything-everywhere-all-at-once-2022',
+      'https://image.tmdb.org/t/p/original/w3LxiVYdWWRvEVdn5RYq6jIqkb1.jpg',
+    ),
   },
 ];
 
@@ -170,6 +203,19 @@ export const tools = {
       title: z.string().describe('Human-readable title name'),
     }),
     outputSchema: z.string(),
+    async execute({ titleId, title }) {
+      const meta = getTitleById(titleId);
+      return JSON.stringify({
+        status: 'preview-started',
+        titleId,
+        title,
+        playbackId: meta?.previewPlaybackId,
+        previewUrl: meta?.previewUrl,
+        backdropUrl: meta?.backdropUrl,
+        poster: meta?.previewPoster ?? meta?.backdropUrl,
+        message: `Preview started for ${title}.`,
+      });
+    },
   }),
   startPlayback: tool({
     description:
@@ -179,6 +225,17 @@ export const tools = {
       title: z.string(),
     }),
     outputSchema: z.string(),
+    async execute({ titleId, title }) {
+      const meta = getTitleById(titleId);
+      return JSON.stringify({
+        status: 'playback-started',
+        titleId,
+        title,
+        playbackId: meta?.previewPlaybackId,
+        runtimeMinutes: meta?.runtimeMinutes,
+        message: `Enjoy ${title}! The feature is now playing on the living room TV.`,
+      });
+    },
   }),
   logFeedback: tool({
     description:

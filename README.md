@@ -14,4 +14,25 @@ This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, vo
 ## Setup
 
 1. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+2. **Configure environment**
+   ```bash
+   cp .env.example .env.local
+   ```
+   Edit `.env.local` and add your OpenAI key (and optionally Mux API credentials if you intend to create assets programmatically):
+   ```
+   OPENAI_API_KEY=sk-...
+   MUX_TOKEN_ID=...
+   MUX_TOKEN_SECRET=...
+   ```
+
+3. **Point preview clips at your Mux assets**
+   Edit `data/muxTrailers.ts` and update the `playbackId` / `poster` pairs for each title with the playback IDs from your Mux dashboard.
+
+4. **Run the dev server**
+   ```bash
+   npm run dev
    ```
