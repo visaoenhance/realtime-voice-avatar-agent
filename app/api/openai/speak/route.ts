@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
-  const { text, voice = 'alloy' }: { text?: string; voice?: string } = await req.json();
+  const {
+    text,
+    voice = 'alloy',
+    language = 'en',
+  }: { text?: string; voice?: string; language?: string } = await req.json();
 
   if (!text || !text.trim()) {
     return NextResponse.json(
@@ -28,6 +32,7 @@ export async function POST(req: Request) {
       model: 'gpt-4o-mini-tts',
       voice,
       input: text,
+      language,
       format: 'mp3',
     }),
   });

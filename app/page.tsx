@@ -248,17 +248,21 @@ export default function Chat() {
       return;
     }
 
-    const text = (lastAssistant.parts ?? [])
+    const fullText = (lastAssistant.parts ?? [])
       .map(part => (part.type === 'text' && part.text ? part.text : ''))
       .filter(Boolean)
       .join(' ')
       .trim();
 
-    if (!text) {
+    if (!fullText) {
       return;
     }
 
-    speakAssistant(messageId, text);
+    const sentences = fullText.split(/(?<=[.!?])\s+/).filter(Boolean);
+    const trimmed = sentences.slice(0, 3).join(' ').trim();
+
+    const speechText = trimmed || sentences[0] || fullText;
+    speakAssistant(messageId, speechText);
   }, [messages, lastUtteranceId, isAssistantMuted, speakAssistant]);
 
   const submitMessage = async (value: string) => {
