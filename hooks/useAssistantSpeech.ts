@@ -67,6 +67,7 @@ export function useAssistantSpeech({
 
       setIsSpeaking(true);
       setLastUtteranceId(job.id);
+      console.info('[AssistantSpeech] playing utterance', job.id);
 
       try {
         const controller = new AbortController();
@@ -98,6 +99,7 @@ export function useAssistantSpeech({
           audio.onended = () => {
             URL.revokeObjectURL(audioUrl);
             audio.onended = null;
+            console.info('[AssistantSpeech] utterance finished', job.id);
             resolve();
           };
           audio.play().catch(error => {
@@ -121,6 +123,7 @@ export function useAssistantSpeech({
     }
 
     processingRef.current = false;
+    console.debug('[AssistantSpeech] queue drained');
   }, []);
 
   const stop = useCallback(() => {
@@ -150,6 +153,7 @@ export function useAssistantSpeech({
         voice: options.voice ?? voice,
       });
 
+      console.debug('[AssistantSpeech] queued utterance', { id, text: text.slice(0, 80) });
       void processQueue();
     },
     [isMuted, processQueue, voice],
