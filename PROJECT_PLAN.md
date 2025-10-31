@@ -121,3 +121,12 @@
   - Play responses through the UI with a mute/unmute toggle so households can switch between spoken and silent modes.
 - Goal: allow end-to-end voice navigation—user speaks to the concierge, approvals gate actions, and the agent replies audibly unless muted.
 
+### Voice Iteration TODOs
+- **Stabilize OpenAI TTS playback**
+  - Log TTS `audio.play()` errors and prevent abrupt `stopAssistantSpeech` calls so the concierge finishes speaking.
+  - Queue speech requests or debounce to avoid interrupting mid-response.
+- **Enforce English voice output**
+  - Pass explicit language/voice params (e.g., `voice: 'alloy', language: 'en-US'`) and verify the API returns consistent English audio.
+- **Shorten spoken replies**
+  - Limit concierge speech to the first ~3 sentences (summarize long text before TTS) while keeping full text in the chat transcript.
+
