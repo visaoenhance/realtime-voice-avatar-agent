@@ -131,3 +131,9 @@
   - Rate-limit outgoing chat requests and surface status/error UI to avoid runaway loops.
   - Provide fallback to manual typing if Realtime initialization fails.
 
+### Future Enhancements
+- Multi-language conversation support
+  - Allow the concierge to detect the user’s language (or let the user pick) and pass the appropriate locale to Realtime, GPT-4o, and TTS.
+  - Surface translated or localized prompts/responses while preserving HITL controls.
+  - Ensure playback voice matches the selected language/locale and update UI copy accordingly.
+

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const DEBUG = true;
 
@@ -50,13 +50,9 @@ export function useRealtimeVoice({
   onFinalTranscript,
   onPartialTranscript,
 }: UseRealtimeVoiceOptions): RealtimeReturn {
-  const isSupported = useMemo(
-    () => typeof window !== 'undefined' && !!navigator.mediaDevices?.getUserMedia,
-    [],
-  );
-
-  const [status, setStatus] = useState<RealtimeStatus>(isSupported ? 'idle' : 'error');
-  const [error, setError] = useState<string | null>(isSupported ? null : 'Voice capture unsupported');
+  const [isSupported, setIsSupported] = useState(false);
+  const [status, setStatus] = useState<RealtimeStatus>('idle');
+  const [error, setError] = useState<string | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
@@ -64,6 +60,15 @@ export function useRealtimeVoice({
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const partialRef = useRef('');
   const listeningRef = useRef(false);
+
+  useEffect(() => {
+    const supported = typeof window !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
+    setIsSupported(supported);
+    if (!supported) {
+      setStatus('error');
+      setError('Voice capture unsupported in this browser.');
+    }
+  }, []);
 
   const cleanupPeerConnection = useCallback(() => {
     dataChannelRef.current?.close();
@@ -122,6 +127,8 @@ export function useRealtimeVoice({
 
   const connect = useCallback(async () => {
     if (!isSupported) {
+      setError('Voice capture unsupported in this browser.');
+      setStatus('error');
       throw new Error('Realtime voice not supported');
     }
     if (pcRef.current) {
