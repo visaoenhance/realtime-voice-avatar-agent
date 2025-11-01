@@ -1,6 +1,6 @@
-# Netflix Human-in-the-Loop Voice Concierge
+# MovieNite (Netflix-Inspired) Human-in-the-Loop Voice Concierge
 
-This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, voice-first agent that helps households pick what to watch. The assistant understands preferred genres, surfaces nostalgic vs. new options, and always requests explicit approval before playing previews or starting playback.
+This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, voice-first agent—rebranded as **MovieNite**—that helps households pick what to watch. The assistant understands preferred genres, surfaces nostalgic vs. new options, and always requests explicit approval before playing previews or starting playback.
 
 ## Highlights
 

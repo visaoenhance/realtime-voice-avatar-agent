@@ -6,9 +6,9 @@ const display = Bebas_Neue({ subsets: ['latin'], weight: '400', variable: '--fon
 const body = Work_Sans({ subsets: ['latin'], variable: '--font-body' });
 
 export const metadata: Metadata = {
-  title: 'Netflix Voice Concierge (HITL)',
+  title: 'MovieNite Voice Concierge (HITL Demo)',
   description:
-    'Voice-first human-in-the-loop concierge that helps households find Netflix titles with explicit preview and playback approvals.',
+    'Voice-first human-in-the-loop concierge that helps households pick streaming titles with Netflix-inspired theming and explicit preview/playback approvals.',
 };
 
 export default function RootLayout({

@@ -633,13 +633,13 @@ export default function Chat() {
       <header className="border-b border-zinc-900/80 bg-black/40">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5">
           <div>
-            <div className="font-display text-3xl text-netflix-red tracking-[0.45em]">
-              Netflix
+            <div className="font-display text-3xl text-netflix-red tracking-[0.35em]">
+              MovieNite
             </div>
             <h1 className="mt-1 text-sm uppercase tracking-[0.6em] text-netflix-gray-300">
               Voice Concierge
-          </h1>
-        </div>
+            </h1>
+          </div>
           <div className="flex items-center gap-3 text-xs text-netflix-gray-300">
             <span className="hidden md:block">
               Human-in-the-loop approvals keep playback in your hands.
