@@ -8,7 +8,7 @@ import { APPROVAL, getToolsRequiringConfirmation } from './api/chat/utils';
 import { HumanInTheLoopUIMessage } from './api/chat/types';
 import { MuxPreviewPlayer } from '@/components/MuxPreviewPlayer';
 import { useAssistantSpeech } from '@/hooks/useAssistantSpeech';
-import { useRealtimeVoice } from '@/hooks/useRealtimeVoice';
+import { useAudioTranscription } from '@/hooks/useAudioTranscription';
 
 type HouseholdProfilePayload = {
   profile?: {
@@ -142,11 +142,14 @@ export default function Chat() {
 
   const [input, setInput] = useState('');
   const [transcript, setTranscript] = useState('');
+  const [pendingUserEcho, setPendingUserEcho] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
 
   const queuedMessageRef = useRef<string | null>(null);
   const sendInFlightRef = useRef(false);
   const lastSendRef = useRef(0);
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const chatScrollAnchorRef = useRef<HTMLDivElement | null>(null);
   const MIN_MESSAGE_INTERVAL = 750;
 
   const {
@@ -185,19 +188,38 @@ export default function Chat() {
   );
 
   useEffect(() => {
-    if (!transcript) {
-      return;
+    if (chatScrollAnchorRef.current) {
+      chatScrollAnchorRef.current.scrollIntoView({ behavior: 'smooth' });
+    } else if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
-    return () => {
-      setTranscript('');
-    };
-  }, []);
+  }, [messages, transcript, pendingToolCallConfirmation, pendingUserEcho]);
 
   useEffect(() => {
     if (!isSending && transcript) {
       setTranscript('');
     }
   }, [isSending, transcript]);
+
+  useEffect(() => {
+    if (!pendingUserEcho) {
+      return;
+    }
+    const lastUserMessage = [...messages]
+      .reverse()
+      .find(message => message.role === 'user' && message.parts?.some(part => part.type === 'text'));
+    if (!lastUserMessage) {
+      return;
+    }
+    const lastUserText = (lastUserMessage.parts ?? [])
+      .map(part => (part.type === 'text' && part.text ? part.text.trim() : ''))
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    if (lastUserText && lastUserText === pendingUserEcho) {
+      setPendingUserEcho(null);
+    }
+  }, [messages, pendingUserEcho]);
 
   const renderToolResult = (toolName: string, rawOutput: unknown) => {
     switch (toolName) {
@@ -303,8 +325,8 @@ export default function Chat() {
       case 'playPreview': {
         const payload = coerceToolPayload<PreviewPayload>(rawOutput);
         if (!payload) {
-          return null;
-        }
+      return null;
+    }
         return (
           <div className="rounded-lg border border-[rgba(229,9,20,0.4)] bg-[rgba(229,9,20,0.12)] p-3 text-sm text-netflix-gray-100">
             {payload.message ?? 'Preview started.'}
@@ -334,8 +356,8 @@ export default function Chat() {
         );
       }
       default:
-        return null;
-    }
+          return null;
+        }
   };
 
   const renderConfirmationCard = (part: any) => {
@@ -386,11 +408,15 @@ export default function Chat() {
             Decline
           </button>
         </div>
-      </div>
+        </div>
     );
   };
 
   useEffect(() => {
+    if (status === 'streaming') {
+      return;
+    }
+
     const lastAssistant = [...messages]
       .reverse()
       .find(message =>
@@ -426,17 +452,17 @@ export default function Chat() {
 
     const speechText = trimmed || sentences[0] || fullText;
     speakAssistant(messageId, speechText);
-  }, [messages, lastUtteranceId, isAssistantMuted, speakAssistant]);
+  }, [messages, lastUtteranceId, isAssistantMuted, speakAssistant, status]);
 
   const submitMessage = useCallback(
     async (
       value: string,
       options: { bypassThrottle?: boolean; clearInput?: boolean } = {},
     ) => {
-      const trimmed = value.trim();
-      if (!trimmed) {
-        return;
-      }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return;
+    }
 
       if (options.clearInput) {
         setInput('');
@@ -456,8 +482,8 @@ export default function Chat() {
       if (sendInFlightRef.current) {
         console.info('[chat] send in flight, queueing next message');
         queuedMessageRef.current = trimmed;
-        return;
-      }
+      return;
+    }
 
       sendInFlightRef.current = true;
       setIsSending(true);
@@ -465,6 +491,7 @@ export default function Chat() {
       console.info('[chat] sending message', trimmed);
 
       try {
+        setPendingUserEcho(trimmed);
         await sendMessage({ text: trimmed });
       } finally {
         sendInFlightRef.current = false;
@@ -480,13 +507,18 @@ export default function Chat() {
   );
 
   const handlePartialTranscript = useCallback((partial: string) => {
+    if (partial) {
+      console.info('[voice->chat] partial transcript', partial);
+    }
     setTranscript(partial);
   }, []);
 
   const handleFinalTranscript = useCallback(
     (text: string) => {
+      console.info('[voice->chat] final transcript', text);
       stopAssistantSpeech();
       void submitMessage(text);
+      setTranscript('');
     },
     [stopAssistantSpeech, submitMessage],
   );
@@ -495,35 +527,62 @@ export default function Chat() {
     status: voiceStatus,
     error: voiceError,
     isSupported: voiceSupported,
-    startListening,
-    stopListening,
-  } = useRealtimeVoice({
+    permission: voicePermission,
+    startRecording,
+    stopRecording,
+    isRecording,
+  } = useAudioTranscription({
     onFinalTranscript: handleFinalTranscript,
     onPartialTranscript: handlePartialTranscript,
   });
 
-  const isListening = voiceStatus === 'listening';
   const isProcessingVoice = voiceStatus === 'processing';
   const micDisabled =
     !voiceSupported ||
     pendingToolCallConfirmation ||
-    voiceStatus === 'connecting' ||
-    voiceStatus === 'error';
+    voiceStatus === 'processing';
+
+  const voicePreflightChecks = useMemo(
+    () => [
+      {
+        label: 'Transcription engine',
+        value: voiceSupported ? 'ready' : 'unsupported',
+        state: voiceSupported ? 'ok' : 'error',
+      },
+      {
+        label: 'Mic permission',
+        value: voicePermission,
+        state: voicePermission === 'granted' ? 'ok' : voicePermission === 'denied' ? 'error' : 'warn',
+      },
+      {
+        label: 'Session status',
+        value: voiceStatus,
+        state:
+          voiceStatus === 'error'
+            ? 'error'
+            : voiceStatus === 'processing'
+            ? 'warn'
+            : 'ok',
+      },
+      ...(voiceError
+        ? [{ label: 'Error', value: voiceError, state: 'error' as const }]
+        : []),
+    ],
+    [voiceError, voicePermission, voiceStatus, voiceSupported],
+  );
 
   const voiceStatusText = useMemo(() => {
+    if (voiceError) {
+      return voiceError;
+    }
+
     switch (voiceStatus) {
-      case 'connecting':
-        return 'Connecting microphone…';
-      case 'listening':
+      case 'recording':
         return 'Listening… share what you feel like watching.';
       case 'processing':
         return 'Processing what you said…';
-      case 'ready':
-        return 'Tap to ask for a recommendation or share a vibe.';
-      case 'disconnected':
-        return 'Tap to reconnect and share a vibe.';
       case 'error':
-        return voiceError ?? 'Voice capture unavailable in this browser.';
+        return 'Voice capture unavailable — please check microphone permissions.';
       default:
         return 'Tap to ask for a recommendation or share a vibe.';
     }
@@ -534,19 +593,19 @@ export default function Chat() {
       return;
     }
 
-    if (isListening || isProcessingVoice) {
-      stopListening();
+    if (isRecording || isProcessingVoice) {
+      stopRecording();
     } else {
       stopAssistantSpeech();
-      void startListening();
+      void startRecording();
     }
   }, [
-    isListening,
+    isRecording,
     isProcessingVoice,
     pendingToolCallConfirmation,
-    startListening,
+    startRecording,
     stopAssistantSpeech,
-    stopListening,
+    stopRecording,
     voiceSupported,
   ]);
 
@@ -560,8 +619,8 @@ export default function Chat() {
             </div>
             <h1 className="mt-1 text-sm uppercase tracking-[0.6em] text-netflix-gray-300">
               Voice Concierge
-            </h1>
-          </div>
+          </h1>
+        </div>
           <div className="flex items-center gap-3 text-xs text-netflix-gray-300">
             <span className="hidden md:block">
               Human-in-the-loop approvals keep playback in your hands.
@@ -580,8 +639,8 @@ export default function Chat() {
                 <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
               )}
             </button>
-          </div>
-        </div>
+                    </div>
+                  </div>
       </header>
 
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8 lg:flex-row">
@@ -591,7 +650,7 @@ export default function Chat() {
               <div>
                 <div className="text-sm uppercase tracking-widest text-netflix-gray-500">
                   Voice link
-                </div>
+                  </div>
                 <p className="mt-1 text-lg font-medium text-netflix-gray-100">
                   {voiceStatusText}
                 </p>
@@ -602,26 +661,46 @@ export default function Chat() {
                   onClick={handleMicButton}
                   disabled={micDisabled}
                   className={`inline-flex h-14 w-14 items-center justify-center rounded-full border text-lg font-semibold transition ${
-                    isListening
+                    isRecording
                       ? 'border-netflix-red bg-netflix-red text-white shadow-[0_12px_30px_rgba(229,9,20,0.25)] hover:bg-[#b20710]'
                       : !micDisabled
                       ? 'border-netflix-red bg-netflix-red text-white shadow-[0_12px_30px_rgba(229,9,20,0.2)] hover:bg-[#b20710]'
                       : 'border-zinc-700 bg-zinc-800 text-netflix-gray-500'
                   }`}
                 >
-                  {isListening ? '◼' : '🎤'}
+                  {isRecording ? '◼' : '🎤'}
                 </button>
                 <div className="text-xs text-netflix-gray-500">
                   {voiceSupported
                     ? voiceError
                       ? voiceError
+                      : isRecording
+                      ? 'Recording your request…'
                       : isProcessingVoice
-                      ? 'Transcribing your request with OpenAI Realtime…'
-                      : 'Powered by OpenAI Realtime voice.'
+                      ? 'Transcribing your request…'
+                      : 'Powered by OpenAI Voice API.'
                     : 'Voice capture unavailable in this browser.'}
-                </div>
-              </div>
-            </div>
+                  <div className="mt-1 space-y-1">
+                    {voicePreflightChecks.map(item => (
+                      <div key={item.label} className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex h-2.5 w-2.5 items-center justify-center rounded-full ${
+                            item.state === 'ok'
+                              ? 'bg-green-500'
+                              : item.state === 'warn'
+                              ? 'bg-amber-400'
+                              : 'bg-red-500'
+                          }`}
+                        />
+                        <span>
+                          {item.label}: {item.value}
+                        </span>
+                            </div>
+                    ))}
+                            </div>
+                            </div>
+                            </div>
+                              </div>
 
             <form
               className="mt-6 flex flex-col gap-3 md:flex-row"
@@ -633,10 +712,10 @@ export default function Chat() {
               <input
                 value={input}
                 onChange={event => setInput(event.target.value)}
-                disabled={pendingToolCallConfirmation}
+                              disabled={pendingToolCallConfirmation}
                 className="flex-1 rounded-2xl border border-zinc-800 bg-black/60 px-4 py-3 text-sm text-netflix-gray-100 placeholder-zinc-500 focus:border-netflix-red focus:outline-none focus:ring-2 focus:ring-[rgba(229,9,20,0.35)]"
                 placeholder={
-                  pendingToolCallConfirmation
+                                pendingToolCallConfirmation
                     ? 'Awaiting your approval first…'
                     : 'Prefer typing? Tell the concierge what you feel like watching.'
                 }
@@ -647,17 +726,17 @@ export default function Chat() {
                 className="rounded-2xl bg-netflix-red px-6 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(229,9,20,0.25)] transition hover:bg-[#b20710] disabled:cursor-not-allowed disabled:bg-zinc-700"
               >
                 {isSending ? 'Sending…' : 'Send'}
-              </button>
+                            </button>
             </form>
 
             {transcript && (
               <div className="mt-4 rounded-xl border border-zinc-800 bg-black/40 p-3 text-xs text-netflix-gray-500">
                 Transcript: “{transcript}”
-              </div>
-            )}
-          </div>
+                  </div>
+                )}
+                    </div>
 
-          <div className="space-y-4">
+          <div ref={chatScrollRef} className="space-y-4 overflow-y-auto max-h-[60vh] pr-1">
             {messages.map(message => {
               const roleLabel = message.role === 'user' ? 'You' : 'Concierge';
               return (
@@ -671,7 +750,7 @@ export default function Chat() {
                 >
                   <div className="text-xs uppercase tracking-[0.4em] text-netflix-gray-500">
                     {roleLabel}
-                  </div>
+              </div>
                   <div className="mt-3 space-y-3 text-sm leading-relaxed">
                     {message.parts?.map((part, index) => {
                       if (part.type === 'text') {
@@ -696,35 +775,46 @@ export default function Chat() {
                       return null;
                     })}
                   </div>
-                </div>
+                  </div>
               );
             })}
 
+            {pendingUserEcho && (
+              <div className="rounded-3xl border border-zinc-800 bg-[rgba(31,31,31,0.85)] px-6 py-5 shadow-inner shadow-black/20 text-zinc-100">
+                <div className="text-xs uppercase tracking-[0.4em] text-netflix-gray-500">You</div>
+                <div className="mt-3 text-sm leading-relaxed text-netflix-gray-200">
+                  {pendingUserEcho}
+              </div>
+                <div className="mt-2 text-xs text-netflix-gray-500">Sending…</div>
+            </div>
+          )}
+
             {status === 'streaming' && !pendingToolCallConfirmation && (
               <div className="flex items-center gap-3 rounded-full border border-[rgba(229,9,20,0.35)] bg-[rgba(229,9,20,0.12)] px-4 py-2 text-xs text-netflix-gray-300">
-                <span className="flex h-3 w-12 items-end justify-between">
-                  <span
+              <span className="flex h-3 w-12 items-end justify-between">
+                <span
                     className="h-full w-2 animate-bounce rounded-full bg-netflix-red"
-                    style={{ animationDelay: '0ms' }}
-                  />
-                  <span
+                  style={{ animationDelay: '0ms' }}
+                />
+                <span
                     className="h-full w-2 animate-bounce rounded-full bg-netflix-red"
-                    style={{ animationDelay: '150ms' }}
-                  />
-                  <span
+                  style={{ animationDelay: '150ms' }}
+                />
+                <span
                     className="h-full w-2 animate-bounce rounded-full bg-netflix-red"
-                    style={{ animationDelay: '300ms' }}
-                  />
-                </span>
+                  style={{ animationDelay: '300ms' }}
+                />
+              </span>
                 Concierge is thinking…
-              </div>
-            )}
+            </div>
+          )}
 
-            {pendingToolCallConfirmation && (
+          {pendingToolCallConfirmation && (
               <div className="rounded-2xl border border-[rgba(229,9,20,0.4)] bg-[rgba(229,9,20,0.12)] px-4 py-3 text-sm text-netflix-gray-100">
                 Approve or decline the requested action to continue the conversation.
-              </div>
-            )}
+            </div>
+          )}
+            <div ref={chatScrollAnchorRef} />
           </div>
         </section>
 
@@ -771,13 +861,13 @@ export default function Chat() {
                       'Your preview is playing on the TV. Tap Play Now on-screen or ask me to start it.'}
                   </div>
                   <div className="mt-4 flex flex-wrap gap-3">
-                    <button
+            <button
                       type="button"
                       className="rounded-full bg-netflix-red px-4 py-2 text-xs font-semibold text-white shadow-[0_12px_30px_rgba(229,9,20,0.25)] hover:bg-[#b20710]"
                       onClick={() => void submitMessage('Play this now')}
-                    >
+            >
                       Play now
-                    </button>
+            </button>
                     <button
                       type="button"
                       className="rounded-full border border-zinc-600 px-4 py-2 text-xs font-semibold text-netflix-gray-300 hover:border-zinc-400 hover:text-white"
@@ -785,14 +875,14 @@ export default function Chat() {
                     >
                       See other options
                     </button>
-                  </div>
+          </div>
                 </div>
               </div>
             ) : (
               <div className="mt-3 rounded-2xl border border-dashed border-zinc-700 p-6 text-sm text-netflix-gray-500">
                 Ask for a preview and we will cue it up here.
-              </div>
-            )}
+        </div>
+      )}
           </div>
 
           <div>

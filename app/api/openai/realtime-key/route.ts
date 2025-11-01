@@ -1,6 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET() {
+const DEFAULT_REALTIME_MODEL = 'gpt-4o-realtime-preview';
+
+export async function GET(req: NextRequest) {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
@@ -11,15 +13,20 @@ export async function GET() {
   }
 
   try {
+    const params = Object.fromEntries(req.nextUrl.searchParams.entries());
+    const model = params.model ?? DEFAULT_REALTIME_MODEL;
+    const voice = params.voice ?? 'alloy';
+
     const response = await fetch('https://api.openai.com/v1/realtime/sessions', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
+        'OpenAI-Beta': 'realtime=v1',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-realtime-preview',
-        voice: 'alloy',
+        model,
+        voice,
         instructions:
           'You are a speech recognition service. Transcribe the user speech verbatim and do not add commentary.',
       }),

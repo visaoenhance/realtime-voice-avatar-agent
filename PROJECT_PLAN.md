@@ -106,30 +106,28 @@
 ### Implementation Notes (Current Status)
 - Added `.env.example` template and updated README/setup guidance for OpenAI configuration.
 - Replaced backpack inventory tools with Netflix household context, recommendation, preview, playback, and feedback tools plus sample catalog metadata.
-- Updated HITL routing logic and system prompt to enforce the Netflix voice concierge dialogue.
+- Hardened the concierge system prompt to require the scripted flow: wait for the first user utterance, immediately load household preferences, constrain recommendations to the curated catalog, and mandate tool usage for preview/playback.
+- Updated HITL routing logic with richer logging plus metadata hand-off so approved preview/playback calls surface Mux `playbackId`, posters, and guard-rail messaging when metadata is missing.
 - Rebuilt the frontend into a voice-first interface with microphone controls, transcript display, confirmation cards, and media sidebar reflecting preview/playback state.
+- Added optimistic voice echo + auto-scroll behaviour so spoken utterances appear in the chat feed immediately while the assistant replies stream underneath.
+- Pivoted voice capture from WebRTC Realtime to a simpler MediaRecorder + OpenAI Transcription API loop (`/api/openai/transcribe`), keeping the AI SDK workflow unchanged while avoiding WebRTC flakiness.
 - Applied Netflix-inspired theming (palette, typography, header treatment) while relying on open-source fonts and custom styles rather than proprietary assets.
 - Integrated Mux-based preview playback via `data/muxTrailers.ts` and a reusable `MuxPreviewPlayer` component for configurable trailers.
 
 ### Voice Enhancements Roadmap
-- Replace the browser Web Speech API with OpenAI Realtime for cross-browser speech-to-text consistency.
-  - Add `app/api/openai/realtime-key` to mint ephemeral session keys using `OPENAI_API_KEY`.
-  - Build a client `RealtimeVoiceClient` hook/component that manages the WebRTC connection, streams microphone audio, and emits transcripts.
-  - Feed finalized transcripts into the existing chat loop (`sendMessage`) while preserving HITL approvals.
+- ✅ Replace the browser Web Speech API with server-side OpenAI transcription (MediaRecorder ➝ `/api/openai/transcribe` ➝ AI SDK chat).
+  - Implemented a reusable `useAudioTranscription` hook that handles mic permissions, recording state, upload, and transcript delivery.
+  - Added `/api/openai/transcribe` to call `gpt-4o-mini-transcribe`, keeping control in our workflow while avoiding WebRTC complexities.
 - Enable spoken concierge responses for a fully conversational loop.
-  - Use the Realtime session (or `responses` with `gpt-4o-mini-tts`) to synthesize audio for assistant messages.
-  - Play responses through the UI with a mute/unmute toggle so households can switch between spoken and silent modes.
-- Goal: allow end-to-end voice navigation—user speaks to the concierge, approvals gate actions, and the agent replies audibly unless muted.
+  - Continue using `/api/openai/speak` (`gpt-4o-mini-tts`) to synthesize audio for assistant messages with queueing + mute toggle.
+  - Goal: allow end-to-end voice navigation—user speaks to the concierge, approvals gate actions, and the agent replies audibly unless muted.
 
 ### Voice Iteration TODOs
 - ✅ Stabilize OpenAI TTS playback by queueing utterances, logging `audio.play()` failures, and avoiding abrupt stops when the user reopens the mic.
 - ✅ Enforce English TTS output by passing `voice: 'alloy'` with `language: 'en'` and trimming speech to concise summaries before playback.
 - ✅ Shorten spoken replies to the first ~3 sentences so confirmations are snappy while the full text remains in chat.
-- 🔄 Migrate speech capture to OpenAI Realtime.
-  - Implement ephemeral key route (`/api/openai/realtime-key`).
-  - Create `useRealtimeVoice` to manage WebRTC, transcripts, and assistant audio.
-  - Rate-limit outgoing chat requests and surface status/error UI to avoid runaway loops.
-  - Provide fallback to manual typing if Realtime initialization fails.
+- ✅ Migrate speech capture to OpenAI transcription API (MediaRecorder → HTTP upload) with client-side status indicators.
+- 🔄 Future: add optional on-device VAD (voice activity detection) to auto-stop listening when silence exceeds threshold, and persist transcript segments for quality review.
 
 ### Future Enhancements
 - Multi-language conversation support

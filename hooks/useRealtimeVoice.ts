@@ -34,6 +34,8 @@ type RealtimeStatus =
 type UseRealtimeVoiceOptions = {
   onFinalTranscript: (text: string) => void;
   onPartialTranscript?: (text: string) => void;
+  model?: string;
+  voice?: string;
 };
 
 type RealtimeReturn = {
@@ -41,6 +43,7 @@ type RealtimeReturn = {
   error: string | null;
   isSupported: boolean;
   isConnected: boolean;
+  permission: PermissionState | 'unknown';
   startListening: () => Promise<void>;
   stopListening: () => void;
   disconnect: () => void;
@@ -49,10 +52,13 @@ type RealtimeReturn = {
 export function useRealtimeVoice({
   onFinalTranscript,
   onPartialTranscript,
+  model = 'gpt-4o-realtime-preview',
+  voice = 'alloy',
 }: UseRealtimeVoiceOptions): RealtimeReturn {
   const [isSupported, setIsSupported] = useState(false);
   const [status, setStatus] = useState<RealtimeStatus>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [permission, setPermission] = useState<PermissionState | 'unknown'>('unknown');
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
@@ -60,6 +66,8 @@ export function useRealtimeVoice({
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const partialRef = useRef('');
   const listeningRef = useRef(false);
+  const pendingCommandQueueRef = useRef<string[]>([]);
+  const retryingRef = useRef(false);
 
   useEffect(() => {
     const supported = typeof window !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
@@ -67,6 +75,21 @@ export function useRealtimeVoice({
     if (!supported) {
       setStatus('error');
       setError('Voice capture unsupported in this browser.');
+    } else {
+      setStatus(prev => (prev === 'error' ? 'idle' : prev));
+      setError(null);
+    }
+
+    if (supported && typeof navigator.permissions?.query === 'function') {
+      navigator.permissions
+        .query({ name: 'microphone' as PermissionName })
+        .then(result => {
+          setPermission(result.state);
+          result.onchange = () => setPermission(result.state);
+        })
+        .catch(() => {
+          setPermission('unknown');
+        });
     }
   }, []);
 
@@ -139,13 +162,19 @@ export function useRealtimeVoice({
     setError(null);
 
     try {
-      const keyResponse = await fetch('/api/openai/realtime-key');
+      const keyResponse = await fetch(`/api/openai/realtime-key?model=${encodeURIComponent(model)}&voice=${encodeURIComponent(voice)}`);
       if (!keyResponse.ok) {
         const payload = await keyResponse.json().catch(() => ({}));
         throw new Error(payload.error ?? 'Failed to fetch realtime key');
       }
-      const { client_secret } = await keyResponse.json();
-      if (!client_secret) {
+      const sessionPayload = await keyResponse.json();
+      const clientSecretRaw = sessionPayload?.client_secret;
+      console.debug('[RealtimeVoice] session payload', sessionPayload);
+      const clientSecret =
+        typeof clientSecretRaw === 'string'
+          ? clientSecretRaw
+          : clientSecretRaw?.value ?? null;
+      if (!clientSecret) {
         throw new Error('Realtime key missing from response');
       }
       log('Ephemeral key obtained');
@@ -170,6 +199,13 @@ export function useRealtimeVoice({
             },
           }),
         );
+        const queue = pendingCommandQueueRef.current;
+        while (queue.length && dataChannel.readyState === 'open') {
+          const command = queue.shift();
+          if (command) {
+            dataChannel.send(command);
+          }
+        }
       };
 
       dataChannel.onmessage = event => {
@@ -269,33 +305,59 @@ export function useRealtimeVoice({
       });
 
       const sdpResponse = await fetch(
-        'https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview&voice=alloy',
+        `https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}&voice=${encodeURIComponent(voice)}`,
         {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${client_secret}`,
+            Authorization: `Bearer ${clientSecret}`,
             'Content-Type': 'application/sdp',
+            'OpenAI-Beta': 'realtime=v1',
           },
           body: offer.sdp ?? '',
         },
       );
 
       if (!sdpResponse.ok) {
-        throw new Error('Failed to establish realtime session');
+        const errorBody = await sdpResponse.text();
+        console.error('[RealtimeVoice] failed realtime SDP request', {
+          status: sdpResponse.status,
+          body: errorBody,
+        });
+        if (sdpResponse.status === 401) {
+          console.error(
+            '[RealtimeVoice] 401 Unauthorized. Ensure the ephemeral client secret from /api/openai/realtime-key includes a .value property and that OPENAI_API_KEY has Realtime access to gpt-4o-realtime-preview.',
+          );
+        }
+        throw new Error(`Failed to establish realtime session (${sdpResponse.status})`);
       }
 
       const answer = await sdpResponse.text();
-      await pc.setRemoteDescription({ type: 'answer', sdp: answer });
-
-      setStatus('ready');
+      await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: answer }));
       console.info('[RealtimeVoice] realtime session ready');
+      retryingRef.current = false;
     } catch (err) {
-      console.error('Realtime connection failed', err);
-      setError((err as Error).message ?? 'Realtime connection failed');
-      cleanupPeerConnection();
+      console.error('[RealtimeVoice] connection error:', err);
+      const message = err instanceof Error ? err.message : String(err);
+      if (!retryingRef.current && message.includes('(401)')) {
+        retryingRef.current = true;
+        console.warn('[RealtimeVoice] retrying realtime connection after unauthorized error');
+        cleanupPeerConnection();
+        await new Promise(resolve => setTimeout(resolve, 300));
+        try {
+          await connect();
+          return;
+        } catch (retryErr) {
+          console.error('[RealtimeVoice] retry failed', retryErr);
+        }
+      }
+
+      retryingRef.current = false;
+      setError(message);
       setStatus('error');
+      console.info('[RealtimeVoice] disconnected');
+      cleanupPeerConnection();
     }
-  }, [cleanupPeerConnection, handleTranscriptDone, isSupported, onPartialTranscript]);
+  }, [cleanupPeerConnection, handleTranscriptDone, isSupported, onPartialTranscript, model, voice]);
 
   const startListening = useCallback(async () => {
     if (!isSupported) {
@@ -321,7 +383,19 @@ export function useRealtimeVoice({
       track.enabled = true;
     });
 
-    dataChannelRef.current.send(JSON.stringify({ type: 'input_audio_buffer.clear' }));
+    const clearCommand = JSON.stringify({ type: 'input_audio_buffer.clear' });
+    if (dataChannelRef.current.readyState !== 'open') {
+      console.warn(
+        '[RealtimeVoice] data channel not open when attempting to clear buffer; queueing command',
+        dataChannelRef.current.readyState,
+      );
+      pendingCommandQueueRef.current.push(clearCommand);
+    } else {
+      dataChannelRef.current.send(clearCommand);
+    }
+    micStreamRef.current?.getAudioTracks().forEach(track => {
+      track.enabled = true;
+    });
     listeningRef.current = true;
     setStatus('listening');
     console.info('[RealtimeVoice] listening started');
@@ -345,18 +419,26 @@ export function useRealtimeVoice({
     listeningRef.current = false;
     setStatus('processing');
 
-    dataChannelRef.current.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
-    dataChannelRef.current.send(
-      JSON.stringify({
-        type: 'response.create',
-        response: {
-          modalities: ['text'],
-          instructions:
-            'Transcribe the most recent audio buffer verbatim and respond with only the transcript text.',
-        },
-      }),
-    );
-    console.info('[RealtimeVoice] listening stopped, awaiting transcript');
+    const commitCommand = JSON.stringify({
+      type: 'response.create',
+      response: {
+        modalities: ['text'],
+        instructions:
+          'Transcribe the most recent audio buffer verbatim and respond with only the transcript text.',
+      },
+    });
+    if (dataChannelRef.current.readyState !== 'open') {
+      console.warn(
+        '[RealtimeVoice] data channel not open when attempting to request transcript; queueing command',
+        dataChannelRef.current.readyState,
+      );
+      pendingCommandQueueRef.current.push(commitCommand);
+    } else {
+      dataChannelRef.current.send(commitCommand);
+    }
+    micStreamRef.current?.getAudioTracks().forEach(track => {
+      track.enabled = false;
+    });
   }, []);
 
   return {
@@ -364,6 +446,7 @@ export function useRealtimeVoice({
     error,
     isSupported,
     isConnected: !!pcRef.current,
+    permission,
     startListening,
     stopListening,
     disconnect,
