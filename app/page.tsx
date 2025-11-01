@@ -20,6 +20,7 @@ type HouseholdProfilePayload = {
     typicalSessionLengthMinutes?: number;
   };
   lastUpdated?: string;
+  speechSummary?: string;
 };
 
 type RecommendationPayload = {
@@ -35,6 +36,7 @@ type RecommendationPayload = {
     tags?: string[];
   }>;
   fallbackApplied?: boolean;
+  speechSummary?: string;
 };
 
 type PreviewPayload = {
@@ -46,6 +48,7 @@ type PreviewPayload = {
   backdropUrl?: string;
   poster?: string;
   message?: string;
+  speechSummary?: string;
 };
 
 type PlaybackPayload = {
@@ -55,6 +58,7 @@ type PlaybackPayload = {
   playbackId?: string;
   runtimeMinutes?: number;
   message?: string;
+  speechSummary?: string;
 };
 
 type FeedbackPayload = {
@@ -62,6 +66,7 @@ type FeedbackPayload = {
   sentiment?: string;
   notes?: string;
   timestamp?: string;
+  speechSummary?: string;
 };
 
 const FALLBACK_BACKDROP =
@@ -437,20 +442,34 @@ export default function Chat() {
       return;
     }
 
+    let speechSummary: string | undefined;
+
+    for (const part of lastAssistant.parts ?? []) {
+      if (!isToolUIPart(part)) {
+        continue;
+      }
+      const rawOutput = (part as any).output ?? (part as any).result;
+      const payload = safeJsonParse<{ speechSummary?: string }>(rawOutput);
+      if (payload?.speechSummary) {
+        speechSummary = payload.speechSummary;
+        break;
+      }
+    }
+
     const fullText = (lastAssistant.parts ?? [])
       .map(part => (part.type === 'text' && part.text ? part.text : ''))
       .filter(Boolean)
       .join(' ')
       .trim();
 
-    if (!fullText) {
+    if (!fullText && !speechSummary) {
       return;
     }
 
     const sentences = fullText.split(/(?<=[.!?])\s+/).filter(Boolean);
-    const trimmed = sentences.slice(0, 3).join(' ').trim();
+    const trimmed = sentences.slice(0, 1).join(' ').trim();
 
-    const speechText = trimmed || sentences[0] || fullText;
+    const speechText = speechSummary ?? (trimmed || sentences[0] || fullText);
     speakAssistant(messageId, speechText);
   }, [messages, lastUtteranceId, isAssistantMuted, speakAssistant, status]);
 

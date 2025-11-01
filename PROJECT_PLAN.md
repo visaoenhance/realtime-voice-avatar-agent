@@ -111,6 +111,7 @@
 - Rebuilt the frontend into a voice-first interface with microphone controls, transcript display, confirmation cards, and media sidebar reflecting preview/playback state.
 - Added optimistic voice echo + auto-scroll behaviour so spoken utterances appear in the chat feed immediately while the assistant replies stream underneath.
 - Pivoted voice capture from WebRTC Realtime to a simpler MediaRecorder + OpenAI Transcription API loop (`/api/openai/transcribe`), keeping the AI SDK workflow unchanged while avoiding WebRTC flakiness.
+- Added concise `speechSummary` strings to tool outputs so concierge TTS delivers short prompts while the UI retains full detail.
 - Applied Netflix-inspired theming (palette, typography, header treatment) while relying on open-source fonts and custom styles rather than proprietary assets.
 - Integrated Mux-based preview playback via `data/muxTrailers.ts` and a reusable `MuxPreviewPlayer` component for configurable trailers.
 

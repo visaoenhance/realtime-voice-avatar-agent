@@ -150,9 +150,11 @@ export const tools = {
     inputSchema: z.object({}).strip(),
     outputSchema: z.string(),
     async execute() {
+      const topGenres = householdProfile.favoriteGenres.slice(0, 3).join(', ');
       return JSON.stringify({
         profile: householdProfile,
         lastUpdated: new Date().toISOString(),
+        speechSummary: `Loaded your Netflix preferences. You both love ${topGenres} nights.`,
       });
     },
   }),
@@ -187,11 +189,15 @@ export const tools = {
         }
       }
 
+      const summaryMood = nostalgia ? 'nostalgic' : 'fresh';
+      const summaryCount = unique.length === 0 ? 'a few' : unique.length;
+
       return JSON.stringify({
         genre,
         nostalgia,
         results: unique,
         fallbackApplied: unique.length < limit,
+        speechSummary: `Here are ${summaryCount} ${summaryMood} ${genre} picks I think you’ll enjoy.`,
       });
     },
   }),
@@ -214,6 +220,7 @@ export const tools = {
         backdropUrl: meta?.backdropUrl,
         poster: meta?.previewPoster ?? meta?.backdropUrl,
         message: `Preview started for ${title}.`,
+        speechSummary: `Preview started for ${title}.`,
       });
     },
   }),
@@ -234,6 +241,7 @@ export const tools = {
         playbackId: meta?.previewPlaybackId,
         runtimeMinutes: meta?.runtimeMinutes,
         message: `Enjoy ${title}! The feature is now playing on the living room TV.`,
+        speechSummary: `Enjoy ${title}! It's now playing on your TV.`,
       });
     },
   }),
@@ -251,6 +259,7 @@ export const tools = {
         sentiment,
         notes,
         timestamp: new Date().toISOString(),
+        speechSummary: 'Thanks for letting me know how that went!',
       });
     },
   }),
