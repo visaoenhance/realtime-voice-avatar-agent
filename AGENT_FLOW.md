@@ -22,6 +22,7 @@
 - Replace WebRTC Realtime with a MediaRecorder-based flow that records short clips and uploads to `/api/openai/transcribe`.
 - Surface partial status updates (“Listening…”, “Processing…”) and show transcripts once returned.
 - Keep permissions and pre-flight indicators so users can diagnose mic issues quickly.
+- Capture the transcription engine’s detected language and store it with the session for downstream use.
 
 ### 2. Guard the Concierge Workflow
 - Keep the strengthened system prompt and conversation-state guard in `app/api/chat/route.ts` so the scripted Netflix flow runs whether input arrives via text or transcription.
@@ -30,6 +31,7 @@
 ### 3. Maintain HITL Controls
 - Leave approval cards for `playPreview` / `startPlayback` untouched; voice and text paths funnel into the same AI SDK logic.
 - Ensure the sidebar (Mux preview + playback status) updates after approvals arrive.
+- Pass the active language to TTS so confirmations are spoken in the user’s language.
 
 ### 4. Regression Test Scenarios
 - Scenario A: voice request → genre → nostalgia → preview approval → playback approval.

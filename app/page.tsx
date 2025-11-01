@@ -149,13 +149,26 @@ export default function Chat() {
   const [transcript, setTranscript] = useState('');
   const [pendingUserEcho, setPendingUserEcho] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [conversationLanguage, setConversationLanguage] = useState<string>('en');
 
   const queuedMessageRef = useRef<string | null>(null);
   const sendInFlightRef = useRef(false);
   const lastSendRef = useRef(0);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const chatScrollAnchorRef = useRef<HTMLDivElement | null>(null);
+  const conversationLanguageRef = useRef<string>('en');
   const MIN_MESSAGE_INTERVAL = 750;
+
+  useEffect(() => {
+    conversationLanguageRef.current = conversationLanguage;
+  }, [conversationLanguage]);
+
+  const normalizeLanguage = useCallback((language?: string | null) => {
+    if (!language) {
+      return 'en';
+    }
+    return language.toLowerCase().split('-')[0];
+  }, []);
 
   const {
     speak: speakAssistant,
@@ -470,13 +483,13 @@ export default function Chat() {
     const trimmed = sentences.slice(0, 1).join(' ').trim();
 
     const speechText = speechSummary ?? (trimmed || sentences[0] || fullText);
-    speakAssistant(messageId, speechText);
+    speakAssistant(messageId, speechText, { language: conversationLanguageRef.current });
   }, [messages, lastUtteranceId, isAssistantMuted, speakAssistant, status]);
 
   const submitMessage = useCallback(
     async (
       value: string,
-      options: { bypassThrottle?: boolean; clearInput?: boolean } = {},
+      options: { bypassThrottle?: boolean; clearInput?: boolean; language?: string } = {},
     ) => {
     const trimmed = value.trim();
     if (!trimmed) {
@@ -510,15 +523,16 @@ export default function Chat() {
       console.info('[chat] sending message', trimmed);
 
       try {
+        const languageToSend = options.language ?? conversationLanguageRef.current;
         setPendingUserEcho(trimmed);
-        await sendMessage({ text: trimmed });
+        await sendMessage({ text: trimmed, metadata: { language: languageToSend } });
       } finally {
         sendInFlightRef.current = false;
         setIsSending(false);
         const next = queuedMessageRef.current;
         queuedMessageRef.current = null;
         if (next) {
-          void submitMessage(next, { bypassThrottle: true });
+          void submitMessage(next, { bypassThrottle: true, language: conversationLanguageRef.current });
         }
       }
     },
@@ -533,13 +547,15 @@ export default function Chat() {
   }, []);
 
   const handleFinalTranscript = useCallback(
-    (text: string) => {
-      console.info('[voice->chat] final transcript', text);
+    (text: string, detectedLanguage?: string | null) => {
+      const normalized = normalizeLanguage(detectedLanguage);
+      setConversationLanguage(normalized);
+      console.info('[voice->chat] final transcript', text, normalized);
       stopAssistantSpeech();
-      void submitMessage(text);
+      void submitMessage(text, { language: normalized });
       setTranscript('');
     },
-    [stopAssistantSpeech, submitMessage],
+    [normalizeLanguage, stopAssistantSpeech, submitMessage],
   );
 
   const {
@@ -583,11 +599,16 @@ export default function Chat() {
             ? 'warn'
             : 'ok',
       },
+      {
+        label: 'Language',
+        value: conversationLanguage.toUpperCase(),
+        state: 'ok' as const,
+      },
       ...(voiceError
         ? [{ label: 'Error', value: voiceError, state: 'error' as const }]
         : []),
     ],
-    [voiceError, voicePermission, voiceStatus, voiceSupported],
+    [conversationLanguage, voiceError, voicePermission, voiceStatus, voiceSupported],
   );
 
   const voiceStatusText = useMemo(() => {

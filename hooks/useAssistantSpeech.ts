@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 type SpeakOptions = {
   voice?: string;
+  language?: string;
 };
 
 type UseAssistantSpeechOptions = {
@@ -15,6 +16,7 @@ type SpeechJob = {
   id: string;
   text: string;
   voice: string;
+  language: string;
 };
 
 export function useAssistantSpeech({
@@ -79,7 +81,7 @@ export function useAssistantSpeech({
           body: JSON.stringify({
             text: job.text,
             voice: job.voice,
-            language: 'en',
+            language: job.language,
           }),
           signal: controller.signal,
         });
@@ -151,6 +153,7 @@ export function useAssistantSpeech({
         id,
         text,
         voice: options.voice ?? voice,
+        language: options.language ?? 'en',
       });
 
       console.debug('[AssistantSpeech] queued utterance', { id, text: text.slice(0, 80) });

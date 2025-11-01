@@ -18,8 +18,8 @@ export async function POST(req: NextRequest) {
 
     const openaiPayload = new FormData();
     openaiPayload.append('file', audio, audio.name || 'speech.webm');
-    openaiPayload.append('model', 'gpt-4o-mini-transcribe');
-    openaiPayload.append('response_format', 'json');
+    openaiPayload.append('model', 'whisper-1');
+    openaiPayload.append('response_format', 'verbose_json');
 
     const response = await fetch(TRANSCRIBE_ENDPOINT, {
       method: 'POST',
@@ -38,10 +38,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as any;
     const transcript = data.text ?? data.results?.[0]?.text ?? '';
+    const language = data.language ?? data.detected_language ?? data.segments?.[0]?.language ?? null;
+    console.info('[api/openai/transcribe] language', language);
 
-    return NextResponse.json({ transcript });
+    return NextResponse.json({ transcript, language });
   } catch (error) {
     console.error('[api/openai/transcribe] failed', error);
     return NextResponse.json({ error: 'Failed to transcribe audio.' }, { status: 500 });

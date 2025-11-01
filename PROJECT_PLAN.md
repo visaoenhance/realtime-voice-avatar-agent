@@ -112,13 +112,15 @@
 - Added optimistic voice echo + auto-scroll behaviour so spoken utterances appear in the chat feed immediately while the assistant replies stream underneath.
 - Pivoted voice capture from WebRTC Realtime to a simpler MediaRecorder + OpenAI Transcription API loop (`/api/openai/transcribe`), keeping the AI SDK workflow unchanged while avoiding WebRTC flakiness.
 - Added concise `speechSummary` strings to tool outputs so concierge TTS delivers short prompts while the UI retains full detail.
+- Auto-detect the user’s spoken language (via transcription metadata), thread it into the chat pipeline, and synthesize concierge replies in the matching language.
 - Applied Netflix-inspired theming (palette, typography, header treatment) while relying on open-source fonts and custom styles rather than proprietary assets.
 - Integrated Mux-based preview playback via `data/muxTrailers.ts` and a reusable `MuxPreviewPlayer` component for configurable trailers.
 
 ### Voice Enhancements Roadmap
 - ✅ Replace the browser Web Speech API with server-side OpenAI transcription (MediaRecorder ➝ `/api/openai/transcribe` ➝ AI SDK chat).
-  - Implemented a reusable `useAudioTranscription` hook that handles mic permissions, recording state, upload, and transcript delivery.
-  - Added `/api/openai/transcribe` to call `gpt-4o-mini-transcribe`, keeping control in our workflow while avoiding WebRTC complexities.
+  - Implemented a reusable `useAudioTranscription` hook that handles mic permissions, recording state, upload, transcript delivery, and returns detected language codes.
+  - Added `/api/openai/transcribe` to call `gpt-4o-mini-transcribe`, returning both transcript and language hints.
+  - Thread language hints into `/api/chat` and `/api/openai/speak` so the concierge mirrors the user’s language automatically.
 - Enable spoken concierge responses for a fully conversational loop.
   - Continue using `/api/openai/speak` (`gpt-4o-mini-tts`) to synthesize audio for assistant messages with queueing + mute toggle.
   - Goal: allow end-to-end voice navigation—user speaks to the concierge, approvals gate actions, and the agent replies audibly unless muted.
@@ -127,7 +129,7 @@
 - ✅ Stabilize OpenAI TTS playback by queueing utterances, logging `audio.play()` failures, and avoiding abrupt stops when the user reopens the mic.
 - ✅ Enforce English TTS output by passing `voice: 'alloy'` with `language: 'en'` and trimming speech to concise summaries before playback.
 - ✅ Shorten spoken replies to the first ~3 sentences so confirmations are snappy while the full text remains in chat.
-- ✅ Migrate speech capture to OpenAI transcription API (MediaRecorder → HTTP upload) with client-side status indicators.
+- ✅ Migrate speech capture to OpenAI transcription API (MediaRecorder → HTTP upload) with client-side status indicators and dynamic language propagation.
 - 🔄 Future: add optional on-device VAD (voice activity detection) to auto-stop listening when silence exceeds threshold, and persist transcript segments for quality review.
 
 ### Future Enhancements

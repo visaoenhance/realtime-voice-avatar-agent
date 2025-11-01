@@ -5,12 +5,13 @@ This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, vo
 ## Highlights
 
 - Voice-centric UI with OpenAI Realtime capture (with typed fallback for unsupported browsers)
-- Netflix domain prompt engineering with OpenAI GPT models
+- Netflix-style domain prompt engineering with OpenAI GPT models
 - Tooling for household context, recommendations, preview, playback, and feedback
 - Human-in-the-loop approvals for preview and playback actions
 - Rich media sidebar that reflects current preview and playback state
 - Netflix-inspired dark theming using open fonts and a custom palette
 - Spoken concierge replies powered by OpenAI TTS with a mute toggle
+- Automatic detection of spoken language (Spanish, etc.) with matching concierge replies
 
 ## Setup
 

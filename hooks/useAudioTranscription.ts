@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 type VoiceStatus = 'idle' | 'recording' | 'processing' | 'error';
 
 type UseAudioTranscriptionOptions = {
-  onFinalTranscript: (text: string) => void;
+  onFinalTranscript: (text: string, language?: string | null) => void;
   onPartialTranscript?: (text: string) => void;
 };
 
@@ -17,6 +17,7 @@ type UseAudioTranscriptionReturn = {
   isRecording: boolean;
   startRecording: () => Promise<void>;
   stopRecording: () => void;
+  lastLanguage: string | null;
 };
 
 export function useAudioTranscription({
@@ -31,6 +32,7 @@ export function useAudioTranscription({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  const lastLanguageRef = useRef<string | null>(null);
 
   useEffect(() => {
     const supported = typeof window !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
@@ -90,11 +92,13 @@ export function useAudioTranscription({
           throw new Error(message || 'Failed to transcribe audio');
         }
 
-        const payload = (await response.json()) as { transcript?: string };
+        const payload = (await response.json()) as { transcript?: string; language?: string | null };
         const transcript = payload?.transcript?.trim();
         if (transcript) {
-          console.info('[voice->chat] final transcript', transcript);
-          onFinalTranscript(transcript);
+          const detectedLanguage = payload.language ?? lastLanguageRef.current;
+          lastLanguageRef.current = detectedLanguage ?? lastLanguageRef.current;
+          console.info('[voice->chat] final transcript', transcript, detectedLanguage ?? 'en');
+          onFinalTranscript(transcript, detectedLanguage);
         } else {
           throw new Error('Transcription succeeded but returned empty text.');
         }
@@ -130,7 +134,7 @@ export function useAudioTranscription({
 
       const recorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = recorder;
-      chunksRef.current = [];
+    chunksRef.current = [];
 
       recorder.ondataavailable = event => {
         if (event.data && event.data.size > 0) {
@@ -195,6 +199,7 @@ export function useAudioTranscription({
     isRecording,
     startRecording,
     stopRecording,
+    lastLanguage: lastLanguageRef.current,
   };
 }
 
