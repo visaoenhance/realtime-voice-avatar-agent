@@ -1,977 +1,233 @@
 'use client';
 
-import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport, getToolName, isToolUIPart } from 'ai';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { tools } from './api/chat/tools';
-import { APPROVAL, getToolsRequiringConfirmation } from './api/chat/utils';
-import { HumanInTheLoopUIMessage } from './api/chat/types';
-import { MuxPreviewPlayer } from '@/components/MuxPreviewPlayer';
-import { useAssistantSpeech } from '@/hooks/useAssistantSpeech';
-import { useAudioTranscription } from '@/hooks/useAudioTranscription';
+import Link from 'next/link';
 
-type HouseholdProfilePayload = {
-  profile?: {
-    primaryViewer?: string;
-    partnerName?: string;
-    favoriteGenres?: string[];
-    comfortShows?: string[];
-    favoriteActors?: string[];
-    typicalSessionLengthMinutes?: number;
-  };
-  lastUpdated?: string;
-  speechSummary?: string;
+type HeroSection = {
+  title: string;
+  subtitle: string;
+  description: string;
+  cta: string;
+  backdrop: string;
 };
 
-type RecommendationPayload = {
-  genre: string;
-  nostalgia: boolean;
-  results: Array<{
-    id: string;
-    title?: string;
-    year?: number;
-    synopsis?: string;
-    runtimeMinutes?: number;
-    cast?: string[];
-    tags?: string[];
-  }>;
-  fallbackApplied?: boolean;
-  speechSummary?: string;
+type Tile = {
+  title: string;
+  tag?: string;
+  image: string;
 };
 
-type PreviewPayload = {
-  status?: string;
-  titleId?: string;
-  title?: string;
-  playbackId?: string;
-  previewUrl?: string;
-  backdropUrl?: string;
-  poster?: string;
-  message?: string;
-  speechSummary?: string;
+type Row = {
+  title: string;
+  tiles: Tile[];
 };
 
-type PlaybackPayload = {
-  status?: string;
-  titleId?: string;
-  title?: string;
-  playbackId?: string;
-  runtimeMinutes?: number;
-  message?: string;
-  speechSummary?: string;
+const hero: HeroSection = {
+  title: 'Dark Winds',
+  subtitle: 'Only on MovieNite',
+  description:
+    'A gritty investigation twists through the desert night. Pick up where you left off or explore something fresh with the concierge.',
+  cta: 'Try Voice Concierge',
+  backdrop:
+    'https://images.unsplash.com/photo-1524334228333-0f6db392f8a1?auto=format&fit=crop&w=1400&q=80',
 };
 
-type FeedbackPayload = {
-  status?: string;
-  sentiment?: string;
-  notes?: string;
-  timestamp?: string;
-  speechSummary?: string;
-};
-
-const FALLBACK_BACKDROP =
-  'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1400&q=80';
-
-function safeJsonParse<T>(value: unknown): T | null {
-  if (typeof value !== 'string') {
-    return null;
-  }
-  try {
-    return JSON.parse(value) as T;
-  } catch (error) {
-    console.warn('Failed to parse tool output', error);
-    return null;
-  }
-}
-
-function coerceToolPayload<T>(raw: unknown): T | null {
-  if (!raw) {
-    return null;
-  }
-  if (typeof raw === 'string') {
-    return safeJsonParse<T>(raw);
-  }
-  if (typeof raw === 'object') {
-    return raw as T;
-  }
-  return null;
-}
-
-function extractLatestToolPayload<T>(
-  messages: HumanInTheLoopUIMessage[],
-  toolName: string,
-): T | null {
-  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
-    const message = messages[messageIndex];
-    if (!message?.parts) {
-      continue;
-    }
-
-    for (let partIndex = message.parts.length - 1; partIndex >= 0; partIndex -= 1) {
-      const part = message.parts[partIndex];
-      if (!isToolUIPart(part) || getToolName(part) !== toolName) {
-        continue;
-      }
-
-      const rawOutput = (part as any).output ?? (part as any).result;
-      const payload = coerceToolPayload<T>(rawOutput);
-      if (payload) {
-        return payload;
-      }
-    }
-  }
-
-  return null;
-}
-
-function formatList(items?: string[]): string {
-  if (!items || items.length === 0) {
-    return '';
-  }
-  if (items.length === 1) {
-    return items[0];
-  }
-  if (items.length === 2) {
-    return `${items[0]} and ${items[1]}`;
-  }
-  const allButLast = items.slice(0, -1).join(', ');
-  const last = items[items.length - 1];
-  return `${allButLast}, and ${last}`;
-}
-
-export default function Chat() {
-  const { messages, addToolResult, sendMessage, status } =
-    useChat<HumanInTheLoopUIMessage>({
-      transport: new DefaultChatTransport({ api: '/api/chat' }),
-    });
-
-  const [input, setInput] = useState('');
-  const [transcript, setTranscript] = useState('');
-  const [pendingUserEcho, setPendingUserEcho] = useState<string | null>(null);
-  const [isSending, setIsSending] = useState(false);
-  const [conversationLanguage, setConversationLanguage] = useState<string>('en');
-
-  const queuedMessageRef = useRef<string | null>(null);
-  const sendInFlightRef = useRef(false);
-  const lastSendRef = useRef(0);
-  const chatScrollRef = useRef<HTMLDivElement | null>(null);
-  const chatScrollAnchorRef = useRef<HTMLDivElement | null>(null);
-  const conversationLanguageRef = useRef<string>('en');
-  const MIN_MESSAGE_INTERVAL = 750;
-
-  useEffect(() => {
-    conversationLanguageRef.current = conversationLanguage;
-  }, [conversationLanguage]);
-
-  const normalizeLanguage = useCallback((language?: string | null) => {
-    if (!language) {
-      return 'en';
-    }
-    return language.toLowerCase().split('-')[0];
-  }, []);
-
-  const {
-    speak: speakAssistant,
-    toggleMute: toggleAssistantMute,
-    isMuted: isAssistantMuted,
-    isSpeaking: assistantIsSpeaking,
-    lastUtteranceId,
-    stop: stopAssistantSpeech,
-  } = useAssistantSpeech({ defaultMuted: false, voice: 'alloy' });
-
-  const toolsRequiringConfirmation = getToolsRequiringConfirmation(tools);
-
-  const pendingToolCallConfirmation = messages.some(m =>
-    m.parts?.some(
-      part =>
-        isToolUIPart(part) &&
-        part.state === 'input-available' &&
-        toolsRequiringConfirmation.includes(getToolName(part)),
-    ),
-  );
-
-  const latestPreview = useMemo(
-    () => extractLatestToolPayload<PreviewPayload>(messages, 'playPreview'),
-    [messages],
-  );
-
-  const latestPlayback = useMemo(
-    () => extractLatestToolPayload<PlaybackPayload>(messages, 'startPlayback'),
-    [messages],
-  );
-
-  const householdProfile = useMemo(
-    () => extractLatestToolPayload<HouseholdProfilePayload>(messages, 'getUserContext'),
-    [messages],
-  );
-
-  useEffect(() => {
-    if (chatScrollAnchorRef.current) {
-      chatScrollAnchorRef.current.scrollIntoView({ behavior: 'smooth' });
-    } else if (chatScrollRef.current) {
-      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
-    }
-  }, [messages, transcript, pendingToolCallConfirmation, pendingUserEcho]);
-
-  useEffect(() => {
-    if (!isSending && transcript) {
-      setTranscript('');
-    }
-  }, [isSending, transcript]);
-
-  useEffect(() => {
-    if (!pendingUserEcho) {
-      return;
-    }
-    const lastUserMessage = [...messages]
-      .reverse()
-      .find(message => message.role === 'user' && message.parts?.some(part => part.type === 'text'));
-    if (!lastUserMessage) {
-      return;
-    }
-    const lastUserText = (lastUserMessage.parts ?? [])
-      .map(part => (part.type === 'text' && part.text ? part.text.trim() : ''))
-      .filter(Boolean)
-      .join(' ')
-      .trim();
-    if (lastUserText && lastUserText === pendingUserEcho) {
-      setPendingUserEcho(null);
-    }
-  }, [messages, pendingUserEcho]);
-
-  const renderToolResult = (toolName: string, rawOutput: unknown) => {
-    switch (toolName) {
-      case 'getUserContext': {
-        const payload = coerceToolPayload<HouseholdProfilePayload>(rawOutput);
-        if (!payload?.profile) {
-          return <div className="text-xs text-netflix-gray-500">No household data available.</div>;
-        }
-        const profile = payload.profile;
-        return (
-          <div className="text-sm text-netflix-gray-100">
-            <div>
-              Primary viewer: <span className="font-medium">{profile.primaryViewer ?? '—'}</span>
-            </div>
-            {profile.partnerName && (
-              <div>
-                Partner: <span className="font-medium">{profile.partnerName}</span>
-              </div>
-            )}
-            {profile.favoriteGenres && profile.favoriteGenres.length > 0 && (
-              <div>
-                Favorite genres: <span className="font-medium">{profile.favoriteGenres.join(', ')}</span>
-              </div>
-            )}
-            {profile.favoriteActors && profile.favoriteActors.length > 0 && (
-              <div>
-                Favorite actors: <span className="font-medium">{profile.favoriteActors.join(', ')}</span>
-              </div>
-            )}
-            {profile.comfortShows && profile.comfortShows.length > 0 && (
-              <div>
-                Comfort list: <span className="font-medium">{profile.comfortShows.join(', ')}</span>
-              </div>
-            )}
-          </div>
-        );
-      }
-      case 'fetchRecommendations': {
-        const payload = coerceToolPayload<RecommendationPayload>(rawOutput);
-        if (!payload?.results || payload.results.length === 0) {
-          return (
-            <div className="rounded-lg border border-zinc-700 bg-[rgba(31,31,31,0.9)] p-3 text-sm text-netflix-gray-300">
-              No recommendations returned yet.
-            </div>
-          );
-        }
-
-        return (
-          <div className="space-y-3">
-            <div className="text-xs uppercase tracking-wide text-netflix-gray-500">
-              {payload.nostalgia ? 'Nostalgic picks' : 'Fresh picks'} in {payload.genre}
-            </div>
-            <div className="grid gap-3">
-              {payload.results.map(result => (
-                <div
-                  key={result.id}
-                  className="rounded-xl border border-zinc-800 bg-[rgba(31,31,31,0.9)] p-4 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="text-base font-semibold text-netflix-gray-100">
-                        {result.title ?? result.id}
-                      </div>
-                      <div className="text-xs text-netflix-gray-500">
-                        {result.year ? `${result.year} • ` : ''}
-                        {result.runtimeMinutes ? `${result.runtimeMinutes} min` : ''}
-                      </div>
-                    </div>
-                  </div>
-                  {result.synopsis && (
-                    <p className="mt-2 text-sm leading-relaxed text-netflix-gray-300">
-                      {result.synopsis}
-                    </p>
-                  )}
-                  {result.cast && result.cast.length > 0 && (
-                    <div className="mt-2 text-xs text-netflix-gray-500">
-                      Cast: {formatList(result.cast)}
-                    </div>
-                  )}
-                  {result.tags && result.tags.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {result.tags.map(tag => (
-                        <span
-                          key={tag}
-                          className="inline-flex items-center rounded-full bg-[rgba(229,9,20,0.12)] px-2 py-1 text-[11px] font-medium text-netflix-red"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            {payload.fallbackApplied && (
-              <div className="text-xs text-netflix-gray-500">
-                Showing best available matches while we surface more options.
-              </div>
-            )}
-          </div>
-        );
-      }
-      case 'playPreview': {
-        const payload = coerceToolPayload<PreviewPayload>(rawOutput);
-        if (!payload) {
-      return null;
-    }
-        return (
-          <div className="rounded-lg border border-[rgba(229,9,20,0.4)] bg-[rgba(229,9,20,0.12)] p-3 text-sm text-netflix-gray-100">
-            {payload.message ?? 'Preview started.'}
-          </div>
-        );
-      }
-      case 'startPlayback': {
-        const payload = coerceToolPayload<PlaybackPayload>(rawOutput);
-        if (!payload) {
-          return null;
-        }
-        return (
-          <div className="rounded-lg border border-[rgba(77,225,121,0.4)] bg-[rgba(34,139,76,0.12)] p-3 text-sm text-netflix-gray-100">
-            {payload.message ?? 'Playback has started.'}
-          </div>
-        );
-      }
-      case 'logFeedback': {
-        const payload = coerceToolPayload<FeedbackPayload>(rawOutput);
-        if (!payload) {
-          return null;
-        }
-        return (
-          <div className="text-xs text-netflix-gray-500">
-            Feedback logged ({payload.sentiment ?? 'n/a'}).
-          </div>
-        );
-      }
-      default:
-          return null;
-        }
-  };
-
-  const renderConfirmationCard = (part: any) => {
-    const toolName = getToolName(part);
-    const toolCallId = part.toolCallId;
-    const renderedInput = JSON.stringify(part.input ?? {}, null, 2);
-    const label =
-      toolName === 'playPreview'
-        ? 'Start preview'
-        : toolName === 'startPlayback'
-        ? 'Start playback'
-        : 'Execute action';
-
-    return (
-      <div className="rounded-xl border border-[rgba(229,9,20,0.45)] bg-[rgba(229,9,20,0.08)] p-4 text-sm text-netflix-gray-100">
-        <div className="font-semibold text-netflix-red">Approval required</div>
-        <p className="mt-2">
-          {label} with args:
-        </p>
-        <pre className="mt-2 overflow-x-auto rounded bg-black/70 p-3 text-xs text-netflix-gray-300">
-{renderedInput}
-        </pre>
-        <div className="mt-3 flex gap-2">
-          <button
-            className="inline-flex flex-1 items-center justify-center rounded-md bg-netflix-red px-3 py-2 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(229,9,20,0.25)] hover:bg-[#b20710]"
-            onClick={async () => {
-              await addToolResult({
-                toolCallId,
-                tool: toolName,
-                output: APPROVAL.YES,
-              });
-              sendMessage();
-            }}
-          >
-            Approve
-          </button>
-          <button
-            className="inline-flex flex-1 items-center justify-center rounded-md border border-zinc-700 bg-black/70 px-3 py-2 text-sm font-semibold text-netflix-gray-300 shadow-sm hover:border-zinc-500"
-            onClick={async () => {
-              await addToolResult({
-                toolCallId,
-                tool: toolName,
-                output: APPROVAL.NO,
-              });
-              sendMessage();
-            }}
-          >
-            Decline
-          </button>
-        </div>
-        </div>
-    );
-  };
-
-  useEffect(() => {
-    if (status === 'streaming') {
-      return;
-    }
-
-    const lastAssistant = [...messages]
-      .reverse()
-      .find(message =>
-        message.role === 'assistant' &&
-        message.parts?.some(part => part.type === 'text' && part.text?.trim()),
-      );
-
-    if (!lastAssistant) {
-      return;
-    }
-
-    const messageId = lastAssistant.id ?? `assistant-${messages.length}`;
-    if (lastUtteranceId === messageId) {
-      return;
-    }
-
-    if (isAssistantMuted) {
-      return;
-    }
-
-    let speechSummary: string | undefined;
-
-    for (const part of lastAssistant.parts ?? []) {
-      if (!isToolUIPart(part)) {
-        continue;
-      }
-      const rawOutput = (part as any).output ?? (part as any).result;
-      const payload = safeJsonParse<{ speechSummary?: string }>(rawOutput);
-      if (payload?.speechSummary) {
-        speechSummary = payload.speechSummary;
-        break;
-      }
-    }
-
-    const fullText = (lastAssistant.parts ?? [])
-      .map(part => (part.type === 'text' && part.text ? part.text : ''))
-      .filter(Boolean)
-      .join(' ')
-      .trim();
-
-    if (!fullText && !speechSummary) {
-      return;
-    }
-
-    const sentences = fullText.split(/(?<=[.!?])\s+/).filter(Boolean);
-    const trimmed = sentences.slice(0, 1).join(' ').trim();
-
-    const speechText = speechSummary ?? (trimmed || sentences[0] || fullText);
-    speakAssistant(messageId, speechText, { language: conversationLanguageRef.current });
-  }, [messages, lastUtteranceId, isAssistantMuted, speakAssistant, status]);
-
-  const submitMessage = useCallback(
-    async (
-      value: string,
-      options: { bypassThrottle?: boolean; clearInput?: boolean; language?: string } = {},
-    ) => {
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return;
-    }
-
-      if (options.clearInput) {
-        setInput('');
-      }
-
-      if (pendingToolCallConfirmation) {
-        queuedMessageRef.current = trimmed;
-        return;
-      }
-
-      const now = Date.now();
-      if (!options.bypassThrottle && now - lastSendRef.current < MIN_MESSAGE_INTERVAL) {
-        console.info('[chat] throttled outgoing message');
-        return;
-      }
-
-      if (sendInFlightRef.current) {
-        console.info('[chat] send in flight, queueing next message');
-        queuedMessageRef.current = trimmed;
-      return;
-    }
-
-      sendInFlightRef.current = true;
-      setIsSending(true);
-      lastSendRef.current = now;
-      console.info('[chat] sending message', trimmed);
-
-      try {
-        const languageToSend = options.language ?? conversationLanguageRef.current;
-        setPendingUserEcho(trimmed);
-        await sendMessage({ text: trimmed, metadata: { language: languageToSend } });
-      } finally {
-        sendInFlightRef.current = false;
-        setIsSending(false);
-        const next = queuedMessageRef.current;
-        queuedMessageRef.current = null;
-        if (next) {
-          void submitMessage(next, { bypassThrottle: true, language: conversationLanguageRef.current });
-        }
-      }
-    },
-    [MIN_MESSAGE_INTERVAL, pendingToolCallConfirmation, sendMessage],
-  );
-
-  const handlePartialTranscript = useCallback((partial: string) => {
-    if (partial) {
-      console.info('[voice->chat] partial transcript', partial);
-    }
-    setTranscript(partial);
-  }, []);
-
-  const handleFinalTranscript = useCallback(
-    (text: string, detectedLanguage?: string | null) => {
-      const normalized = normalizeLanguage(detectedLanguage);
-      setConversationLanguage(normalized);
-      console.info('[voice->chat] final transcript', text, normalized);
-      stopAssistantSpeech();
-      void submitMessage(text, { language: normalized });
-      setTranscript('');
-    },
-    [normalizeLanguage, stopAssistantSpeech, submitMessage],
-  );
-
-  const {
-    status: voiceStatus,
-    error: voiceError,
-    isSupported: voiceSupported,
-    permission: voicePermission,
-    startRecording,
-    stopRecording,
-    isRecording,
-  } = useAudioTranscription({
-    onFinalTranscript: handleFinalTranscript,
-    onPartialTranscript: handlePartialTranscript,
-  });
-
-  const isProcessingVoice = voiceStatus === 'processing';
-  const micDisabled =
-    !voiceSupported ||
-    pendingToolCallConfirmation ||
-    voiceStatus === 'processing';
-
-  const voicePreflightChecks = useMemo(
-    () => [
+const rows: Row[] = [
+  {
+    title: 'Only on MovieNite',
+    tiles: [
       {
-        label: 'Transcription engine',
-        value: voiceSupported ? 'ready' : 'unsupported',
-        state: voiceSupported ? 'ok' : 'error',
+        title: 'Untamed',
+        tag: 'Recently Added',
+        image: 'https://images.unsplash.com/photo-1517816428104-797678c7cf0d?auto=format&fit=crop&w=800&q=80',
       },
       {
-        label: 'Mic permission',
-        value: voicePermission,
-        state: voicePermission === 'granted' ? 'ok' : voicePermission === 'denied' ? 'error' : 'warn',
+        title: 'Wednesday',
+        tag: 'Top 10',
+        image: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80',
       },
       {
-        label: 'Session status',
-        value: voiceStatus,
-        state:
-          voiceStatus === 'error'
-            ? 'error'
-            : voiceStatus === 'processing'
-            ? 'warn'
-            : 'ok',
+        title: 'Genie Make a Wish',
+        image: 'https://images.unsplash.com/photo-1514790193030-c89d266d5a9d?auto=format&fit=crop&w=800&q=80',
       },
       {
-        label: 'Language',
-        value: conversationLanguage.toUpperCase(),
-        state: 'ok' as const,
+        title: 'The Sandman',
+        image: 'https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=800&q=80',
       },
-      ...(voiceError
-        ? [{ label: 'Error', value: voiceError, state: 'error' as const }]
-        : []),
     ],
-    [conversationLanguage, voiceError, voicePermission, voiceStatus, voiceSupported],
+  },
+  {
+    title: 'Catch Up on Unwatched Episodes',
+    tiles: [
+      {
+        title: 'S.W.A.T.',
+        tag: 'Top 10',
+        image: 'https://images.unsplash.com/photo-1525097487452-6278ff080c31?auto=format&fit=crop&w=800&q=80',
+      },
+      {
+        title: 'Blacklist',
+        image: 'https://images.unsplash.com/photo-1461800919507-79b16743b257?auto=format&fit=crop&w=800&q=80',
+      },
+      {
+        title: 'Mystery of Aaravos',
+        image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=800&q=80',
+      },
+      {
+        title: 'Alice in Borderland',
+        image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80',
+      },
+    ],
+  },
+  {
+    title: 'Trending in Sci-Fi',
+    tiles: [
+      {
+        title: 'Rebel Moon',
+        image: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=800&q=80',
+      },
+      {
+        title: 'Everything Everywhere',
+        image: 'https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&w=800&q=80',
+      },
+      {
+        title: 'Planet of the Apes',
+        image: 'https://images.unsplash.com/photo-1505685296765-3a2736de412f?auto=format&fit=crop&w=800&q=80',
+      },
+      {
+        title: 'The Matrix',
+        image: 'https://images.unsplash.com/photo-1525182008055-f88b95ff7980?auto=format&fit=crop&w=800&q=80',
+      },
+    ],
+  },
+];
+
+function TileCard({ title, tag, image }: Tile) {
+  return (
+    <div
+      className="group relative aspect-video w-full overflow-hidden rounded-2xl border border-zinc-800 bg-black/30 shadow-lg transition hover:-translate-y-1 hover:border-zinc-700"
+      style={{
+        backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.75) 100%), url(${image})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      {tag ? (
+        <span className="absolute left-3 top-3 rounded-full bg-netflix-red px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
+          {tag}
+        </span>
+      ) : null}
+      <div className="absolute inset-x-3 bottom-3">
+        <div className="font-semibold text-sm text-slate-100 drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
+          {title}
+        </div>
+      </div>
+    </div>
   );
+}
 
-  const voiceStatusText = useMemo(() => {
-    if (voiceError) {
-      return voiceError;
-    }
-
-    switch (voiceStatus) {
-      case 'recording':
-        return 'Listening… share what you feel like watching.';
-      case 'processing':
-        return 'Processing what you said…';
-      case 'error':
-        return 'Voice capture unavailable — please check microphone permissions.';
-      default:
-        return 'Tap to ask for a recommendation or share a vibe.';
-    }
-  }, [voiceError, voiceStatus]);
-
-  const handleMicButton = useCallback(() => {
-    if (!voiceSupported || pendingToolCallConfirmation) {
-      return;
-    }
-
-    if (isRecording || isProcessingVoice) {
-      stopRecording();
-    } else {
-      stopAssistantSpeech();
-      void startRecording();
-    }
-  }, [
-    isRecording,
-    isProcessingVoice,
-    pendingToolCallConfirmation,
-    startRecording,
-    stopAssistantSpeech,
-    stopRecording,
-    voiceSupported,
-  ]);
-
+export default function Home() {
   return (
     <div className="min-h-screen bg-netflix-black text-netflix-gray-100">
-      <header className="border-b border-zinc-900/80 bg-black/40">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5">
-          <div>
-            <div className="font-display text-3xl text-netflix-red tracking-[0.35em]">
+      <header className="border-b border-black/60 bg-[rgba(0,0,0,0.65)] backdrop-blur">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
+          <div className="flex items-center gap-10">
+            <Link href="/" className="font-display text-3xl tracking-[0.35em] text-netflix-red">
               MovieNite
-            </div>
-            <h1 className="mt-1 text-sm uppercase tracking-[0.6em] text-netflix-gray-300">
-              Voice Concierge
-            </h1>
+            </Link>
+            <nav className="hidden gap-6 text-xs font-semibold uppercase tracking-[0.4em] text-netflix-gray-300 md:flex">
+              <Link href="/" className="text-white">
+                Home
+              </Link>
+              <Link
+                href="/voice"
+                className="transition hover:text-netflix-gray-100"
+              >
+                Voice Concierge
+              </Link>
+            </nav>
           </div>
-          <div className="flex items-center gap-3 text-xs text-netflix-gray-300">
-            <span className="hidden md:block">
-              Human-in-the-loop approvals keep playback in your hands.
-            </span>
-            <button
-              type="button"
-              onClick={toggleAssistantMute}
-              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 font-semibold transition ${
-                isAssistantMuted
-                  ? 'border-zinc-700 bg-zinc-800 text-netflix-gray-300 hover:border-zinc-500'
-                  : 'border-netflix-red bg-netflix-red text-white hover:bg-[#b20710]'
-              }`}
-            >
-              <span>{isAssistantMuted ? 'Enable Voice' : 'Mute Voice'}</span>
-              {!isAssistantMuted && assistantIsSpeaking && (
-                <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
-              )}
-            </button>
-                    </div>
-                  </div>
+          <Link
+            href="/voice"
+            className="rounded-full bg-netflix-red px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white shadow-[0_12px_30px_rgba(229,9,20,0.25)] transition hover:bg-[#b20710]"
+          >
+            Launch Voice Concierge
+          </Link>
+        </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8 lg:flex-row">
-        <section className="flex-1 space-y-6">
-          <div className="rounded-3xl border border-zinc-800 bg-[rgba(20,20,20,0.92)] p-6 shadow-xl">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="text-sm uppercase tracking-widest text-netflix-gray-500">
-                  Voice link
-                  </div>
-                <p className="mt-1 text-lg font-medium text-netflix-gray-100">
-                  {voiceStatusText}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleMicButton}
-                  disabled={micDisabled}
-                  className={`inline-flex h-14 w-14 items-center justify-center rounded-full border text-lg font-semibold transition ${
-                    isRecording
-                      ? 'border-netflix-red bg-netflix-red text-white shadow-[0_12px_30px_rgba(229,9,20,0.25)] hover:bg-[#b20710]'
-                      : !micDisabled
-                      ? 'border-netflix-red bg-netflix-red text-white shadow-[0_12px_30px_rgba(229,9,20,0.2)] hover:bg-[#b20710]'
-                      : 'border-zinc-700 bg-zinc-800 text-netflix-gray-500'
-                  }`}
-                >
-                  {isRecording ? '◼' : '🎤'}
-                </button>
-                <div className="text-xs text-netflix-gray-500">
-                  {voiceSupported
-                    ? voiceError
-                      ? voiceError
-                      : isRecording
-                      ? 'Recording your request…'
-                      : isProcessingVoice
-                      ? 'Transcribing your request…'
-                      : 'Powered by OpenAI Voice API.'
-                    : 'Voice capture unavailable in this browser.'}
-                  <div className="mt-1 space-y-1">
-                    {voicePreflightChecks.map(item => (
-                      <div key={item.label} className="flex items-center gap-2">
-                        <span
-                          className={`inline-flex h-2.5 w-2.5 items-center justify-center rounded-full ${
-                            item.state === 'ok'
-                              ? 'bg-green-500'
-                              : item.state === 'warn'
-                              ? 'bg-amber-400'
-                              : 'bg-red-500'
-                          }`}
-                        />
-                        <span>
-                          {item.label}: {item.value}
-                        </span>
-                            </div>
-                    ))}
-                            </div>
-                            </div>
-                            </div>
-                              </div>
-
-            <form
-              className="mt-6 flex flex-col gap-3 md:flex-row"
-              onSubmit={event => {
-                event.preventDefault();
-                void submitMessage(input, { clearInput: true });
-              }}
-            >
-              <input
-                value={input}
-                onChange={event => setInput(event.target.value)}
-                              disabled={pendingToolCallConfirmation}
-                className="flex-1 rounded-2xl border border-zinc-800 bg-black/60 px-4 py-3 text-sm text-netflix-gray-100 placeholder-zinc-500 focus:border-netflix-red focus:outline-none focus:ring-2 focus:ring-[rgba(229,9,20,0.35)]"
-                placeholder={
-                                pendingToolCallConfirmation
-                    ? 'Awaiting your approval first…'
-                    : 'Prefer typing? Tell the concierge what you feel like watching.'
-                }
-              />
-              <button
-                type="submit"
-                disabled={pendingToolCallConfirmation || !input.trim() || isSending}
-                className="rounded-2xl bg-netflix-red px-6 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(229,9,20,0.25)] transition hover:bg-[#b20710] disabled:cursor-not-allowed disabled:bg-zinc-700"
+      <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 py-10">
+        <section
+          className="relative overflow-hidden rounded-[28px] border border-zinc-900 bg-black/40 shadow-2xl"
+          style={{
+            backgroundImage: `linear-gradient(90deg, rgba(0,0,0,0.75) 20%, rgba(0,0,0,0.05) 70%), url(${hero.backdrop})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        >
+          <div className="flex flex-col gap-4 p-10 md:max-w-lg">
+            <div className="text-xs uppercase tracking-[0.4em] text-netflix-gray-300">
+              {hero.subtitle}
+            </div>
+            <h1 className="font-display text-4xl tracking-[0.15em] text-white md:text-5xl">
+              {hero.title}
+            </h1>
+            <p className="text-sm text-netflix-gray-200">{hero.description}</p>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/voice"
+                className="inline-flex items-center gap-2 rounded-full bg-netflix-red px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-[#b20710]"
               >
-                {isSending ? 'Sending…' : 'Send'}
-                            </button>
-            </form>
-
-            {transcript && (
-              <div className="mt-4 rounded-xl border border-zinc-800 bg-black/40 p-3 text-xs text-netflix-gray-500">
-                Transcript: “{transcript}”
-                  </div>
-                )}
-                    </div>
-
-          <div ref={chatScrollRef} className="space-y-4 overflow-y-auto max-h-[60vh] pr-1">
-            {messages.map(message => {
-              const roleLabel = message.role === 'user' ? 'You' : 'Concierge';
-              return (
-                <div
-                  key={message.id}
-                  className={`rounded-3xl border bg-[rgba(31,31,31,0.85)] px-6 py-5 shadow-inner shadow-black/20 ${
-                    message.role === 'assistant'
-                      ? 'border-[rgba(229,9,20,0.35)] text-netflix-gray-100'
-                      : 'border-zinc-800 text-zinc-100'
-                  }`}
-                >
-                  <div className="text-xs uppercase tracking-[0.4em] text-netflix-gray-500">
-                    {roleLabel}
-              </div>
-                  <div className="mt-3 space-y-3 text-sm leading-relaxed">
-                    {message.parts?.map((part, index) => {
-                      if (part.type === 'text') {
-                        return <p key={index}>{part.text}</p>;
-                      }
-
-                      if (isToolUIPart(part)) {
-                        const toolName = getToolName(part);
-                        if (
-                          toolsRequiringConfirmation.includes(toolName) &&
-                          part.state === 'input-available'
-                        ) {
-                          return <div key={index}>{renderConfirmationCard(part)}</div>;
-                        }
-
-                        const output = (part as any).output ?? (part as any).result;
-                        if (output) {
-                          return <div key={index}>{renderToolResult(toolName, output)}</div>;
-                        }
-                      }
-
-                      return null;
-                    })}
-                  </div>
-                  </div>
-              );
-            })}
-
-            {pendingUserEcho && (
-              <div className="rounded-3xl border border-zinc-800 bg-[rgba(31,31,31,0.85)] px-6 py-5 shadow-inner shadow-black/20 text-zinc-100">
-                <div className="text-xs uppercase tracking-[0.4em] text-netflix-gray-500">You</div>
-                <div className="mt-3 text-sm leading-relaxed text-netflix-gray-200">
-                  {pendingUserEcho}
-              </div>
-                <div className="mt-2 text-xs text-netflix-gray-500">Sending…</div>
+                {hero.cta}
+              </Link>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-full border border-zinc-700 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-netflix-gray-200 transition hover:border-zinc-500 hover:text-white"
+              >
+                Continue Watching
+              </button>
             </div>
-          )}
-
-            {status === 'streaming' && !pendingToolCallConfirmation && (
-              <div className="flex items-center gap-3 rounded-full border border-[rgba(229,9,20,0.35)] bg-[rgba(229,9,20,0.12)] px-4 py-2 text-xs text-netflix-gray-300">
-              <span className="flex h-3 w-12 items-end justify-between">
-                <span
-                    className="h-full w-2 animate-bounce rounded-full bg-netflix-red"
-                  style={{ animationDelay: '0ms' }}
-                />
-                <span
-                    className="h-full w-2 animate-bounce rounded-full bg-netflix-red"
-                  style={{ animationDelay: '150ms' }}
-                />
-                <span
-                    className="h-full w-2 animate-bounce rounded-full bg-netflix-red"
-                  style={{ animationDelay: '300ms' }}
-                />
-              </span>
-                Concierge is thinking…
-            </div>
-          )}
-
-          {pendingToolCallConfirmation && (
-              <div className="rounded-2xl border border-[rgba(229,9,20,0.4)] bg-[rgba(229,9,20,0.12)] px-4 py-3 text-sm text-netflix-gray-100">
-                Approve or decline the requested action to continue the conversation.
-            </div>
-          )}
-            <div ref={chatScrollAnchorRef} />
           </div>
         </section>
 
-        <aside className="w-full max-w-xl space-y-6 rounded-3xl border border-zinc-800 bg-[rgba(20,20,20,0.92)] p-6 shadow-2xl">
-          <div>
-            <div className="text-xs uppercase tracking-[0.4em] text-netflix-gray-500">
-              Now playing
+        <section className="space-y-10">
+          {rows.map(row => (
+            <div key={row.title} className="space-y-4">
+              <div className="text-sm font-semibold uppercase tracking-[0.35em] text-netflix-gray-300">
+                {row.title}
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {row.tiles.map(tile => (
+                  <TileCard key={`${row.title}-${tile.title}`} {...tile} />
+                ))}
+              </div>
             </div>
-            {latestPreview ? (
-              <div
-                className="mt-3 overflow-hidden rounded-2xl border border-zinc-800 bg-black/60"
-                style={{
-                  backgroundImage: `linear-gradient(0deg, rgba(0,0,0,0.65), rgba(0,0,0,0.25)), url(${
-                    latestPreview.backdropUrl ?? FALLBACK_BACKDROP
-                  })`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                }}
-              >
-                <div className="p-5 text-zinc-100">
-                  <div className="text-xs uppercase tracking-[0.3em] text-netflix-gray-300">
-                    Preview
-                  </div>
-                  <div className="mt-3">
-                    {latestPreview.playbackId ? (
-                      <MuxPreviewPlayer
-                        playbackId={latestPreview.playbackId}
-                        title={latestPreview.title ?? latestPreview.titleId ?? 'Preview'}
-                        poster={latestPreview.poster ?? latestPreview.backdropUrl}
-                      />
-                    ) : latestPreview.previewUrl ? (
-                      <video
-                        key={latestPreview.previewUrl}
-                        className="w-full rounded-xl border border-black/40"
-                        src={latestPreview.previewUrl}
-                        controls
-                        autoPlay
-                        playsInline
-                      />
-                    ) : null}
-                  </div>
-                  <div className="mt-3 text-sm text-netflix-gray-300 opacity-80">
-                    {latestPreview.message ??
-                      'Your preview is playing on the TV. Tap Play Now on-screen or ask me to start it.'}
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-3">
-            <button
-                      type="button"
-                      className="rounded-full bg-netflix-red px-4 py-2 text-xs font-semibold text-white shadow-[0_12px_30px_rgba(229,9,20,0.25)] hover:bg-[#b20710]"
-                      onClick={() => void submitMessage('Play this now')}
+          ))}
+        </section>
+
+        <section className="rounded-[28px] border border-zinc-900 bg-[rgba(18,18,18,0.9)] p-10 shadow-xl">
+          <div className="text-xs uppercase tracking-[0.35em] text-netflix-gray-400">New workflow</div>
+          <h2 className="mt-3 text-2xl font-semibold text-white">
+            Talk through movie night instead of scrolling forever
+          </h2>
+          <p className="mt-3 max-w-3xl text-sm text-netflix-gray-300">
+            Voice Concierge keeps all the approvals in your hands. Ask for genres in any language, request nostalgic or new picks, approve previews, and start playback only when you say so.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-4">
+            <Link
+              href="/voice"
+              className="rounded-full bg-netflix-red px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white shadow-[0_12px_30px_rgba(229,9,20,0.25)] transition hover:bg-[#b20710]"
             >
-                      Play now
-            </button>
-                    <button
-                      type="button"
-                      className="rounded-full border border-zinc-600 px-4 py-2 text-xs font-semibold text-netflix-gray-300 hover:border-zinc-400 hover:text-white"
-                      onClick={() => void submitMessage('Show me other options')}
-                    >
-                      See other options
-                    </button>
+              Try the Voice Concierge
+            </Link>
+            <a
+              href="https://www.netflix.com/browse"
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-full border border-zinc-700 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-netflix-gray-200 transition hover:border-zinc-500 hover:text-white"
+            >
+              Compare with Netflix UI
+            </a>
           </div>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-3 rounded-2xl border border-dashed border-zinc-700 p-6 text-sm text-netflix-gray-500">
-                Ask for a preview and we will cue it up here.
-        </div>
-      )}
-          </div>
-
-          <div>
-            <div className="text-xs uppercase tracking-[0.4em] text-netflix-gray-500">
-              Playback status
-            </div>
-            {latestPlayback ? (
-              <div className="mt-3 rounded-2xl border border-[rgba(77,225,121,0.4)] bg-[rgba(34,139,76,0.12)] p-4 text-sm text-netflix-gray-100">
-                {latestPlayback.message ?? 'Playback confirmed.'}
-              </div>
-            ) : (
-              <div className="mt-3 rounded-2xl border border-dashed border-zinc-700 p-6 text-sm text-netflix-gray-500">
-                When you approve playback you will see confirmation here.
-              </div>
-            )}
-          </div>
-
-          <div>
-            <div className="text-xs uppercase tracking-[0.4em] text-netflix-gray-500">
-              Household favorites
-            </div>
-            {householdProfile?.profile ? (
-              <div className="mt-3 space-y-2 text-sm text-netflix-gray-100">
-                <div>
-                  👥 Emilio & {householdProfile.profile.partnerName ?? 'partner'}
-                </div>
-                {householdProfile.profile.favoriteGenres && (
-                  <div>
-                    🎬 Genres: {formatList(householdProfile.profile.favoriteGenres)}
-                  </div>
-                )}
-                {householdProfile.profile.comfortShows && (
-                  <div>
-                    🛋️ Comfort picks: {formatList(householdProfile.profile.comfortShows)}
-                  </div>
-                )}
-                {householdProfile.profile.favoriteActors && (
-                  <div>
-                    🌟 Actors: {formatList(householdProfile.profile.favoriteActors)}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="mt-3 rounded-2xl border border-dashed border-zinc-700 p-6 text-sm text-netflix-gray-500">
-                Once the concierge checks your profile it will appear here.
-              </div>
-            )}
-          </div>
-        </aside>
+        </section>
       </main>
     </div>
   );

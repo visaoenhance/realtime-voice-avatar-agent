@@ -12,6 +12,7 @@ This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, vo
 - Netflix-inspired dark theming using open fonts and a custom palette
 - Spoken concierge replies powered by OpenAI TTS with a mute toggle
 - Automatic detection of spoken language (Spanish, etc.) with matching concierge replies
+- Classic “tile” homepage for contrast, plus a dedicated voice concierge route (`/voice`)
 
 ## Setup
 
@@ -34,8 +35,7 @@ This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, vo
 3. **Point preview clips at your Mux assets**
    Edit `data/muxTrailers.ts` and update the `playbackId` / `poster` pairs for each title with the playback IDs from your Mux dashboard.
 
-4. **Launch the experience**
-   Visit [http://localhost:3000](http://localhost:3000) and allow microphone access to try the voice flow.
-   The microphone button uses OpenAI Realtime for push-to-talk capture. If the browser blocks WebRTC/mic access, switch to typing (the concierge will still speak responses).
-
+4. **Explore both flows**
+   - Visit [http://localhost:3000](http://localhost:3000) to see the traditional tile-based home screen with a call-to-action for the concierge.
+   - Jump to [http://localhost:3000/voice](http://localhost:3000/voice) to launch the fully voice-driven experience.
 5. When ready to commit, say "Let's watch this"; the assistant triggers `startPlayback`, again asking for approval before confirming the stream is live and speaking the confirmation aloud (unless muted).

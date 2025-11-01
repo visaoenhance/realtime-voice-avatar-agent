@@ -113,6 +113,7 @@
 - Pivoted voice capture from WebRTC Realtime to a simpler MediaRecorder + OpenAI Transcription API loop (`/api/openai/transcribe`), keeping the AI SDK workflow unchanged while avoiding WebRTC flakiness.
 - Added concise `speechSummary` strings to tool outputs so concierge TTS delivers short prompts while the UI retains full detail.
 - Auto-detect the user’s spoken language (via transcription metadata), thread it into the chat pipeline, and synthesize concierge replies in the matching language.
+- Added a static “Home” view (classic tile layout) alongside the `/voice` route so we can demonstrate the legacy browsing flow versus the concierge experience.
 - Applied Netflix-inspired theming (palette, typography, header treatment) while relying on open-source fonts and custom styles rather than proprietary assets.
 - Integrated Mux-based preview playback via `data/muxTrailers.ts` and a reusable `MuxPreviewPlayer` component for configurable trailers.
 
