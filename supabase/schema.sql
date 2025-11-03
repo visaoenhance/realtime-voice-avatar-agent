@@ -3,11 +3,11 @@
 
 create extension if not exists "uuid-ossp";
 
-delete from mvnte_view_history;
-delete from mvnte_preferences;
-delete from mvnte_parental_controls;
-delete from mvnte_titles;
-delete from mvnte_profiles;
+drop table if exists mvnte_view_history cascade;
+drop table if exists mvnte_preferences cascade;
+drop table if exists mvnte_parental_controls cascade;
+drop table if exists mvnte_titles cascade;
+drop table if exists mvnte_profiles cascade;
 
 create table if not exists mvnte_profiles (
   id uuid primary key,
@@ -104,7 +104,7 @@ values (
     ]
   }'::jsonb,
   NULL
-);
+) on conflict (id) do update set default_layout = excluded.default_layout;
 
 with title_seed as (
   insert into mvnte_titles (slug, name, genres, cast_members, year, nostalgic, maturity_rating, hero_backdrop, hero_description) values
@@ -118,6 +118,15 @@ with title_seed as (
   ('swat-2020', 'S.W.A.T.', '{"action"}', '{"Shemar Moore"}', 2020, false, 'TV-14', 'https://images.unsplash.com/photo-1525097487452-6278ff080c31?auto=format&fit=crop&w=1600&q=80', 'A Los Angeles SWAT lieutenant balances loyalty to the streets and loyalty to his brothers in blue.'),
   ('dark-winds-2023', 'Dark Winds', '{"thriller","mystery"}', '{"Zahn McClarnon"}', 2023, false, 'TV-MA', 'https://images.unsplash.com/photo-1524334228333-0f6db392f8a1?auto=format&fit=crop&w=1600&q=80', 'Navajo police investigate a double murder.'),
   ('sandman-2022', 'The Sandman', '{"fantasy","drama"}', '{"Tom Sturridge"}', 2022, false, 'TV-MA', 'https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1600&q=80', 'Dream escapes and must reclaim his kingdom.')
+  on conflict (slug) do update set
+    name = excluded.name,
+    genres = excluded.genres,
+    cast_members = excluded.cast_members,
+    year = excluded.year,
+    nostalgic = excluded.nostalgic,
+    maturity_rating = excluded.maturity_rating,
+    hero_backdrop = excluded.hero_backdrop,
+    hero_description = excluded.hero_description
   returning id, slug
 )
 select 1;
