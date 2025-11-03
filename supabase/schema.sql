@@ -24,7 +24,7 @@ create table if not exists mvnte_titles (
   slug text unique not null,
   name text not null,
   genres text[] not null default '{}',
-  cast text[] not null default '{}',
+  cast_members text[] not null default '{}',
   year integer,
   nostalgic boolean default false,
   maturity_rating text default 'PG',
@@ -107,7 +107,7 @@ values (
 );
 
 with title_seed as (
-  insert into mvnte_titles (slug, name, genres, cast, year, nostalgic, maturity_rating, hero_backdrop, hero_description) values
+  insert into mvnte_titles (slug, name, genres, cast_members, year, nostalgic, maturity_rating, hero_backdrop, hero_description) values
   ('planet-of-the-apes-1968', 'Planet of the Apes', '{"sci-fi","adventure"}', '{"Charlton Heston","Roddy McDowall"}', 1968, true, 'PG-13', 'https://images.unsplash.com/photo-1505685296765-3a2736de412f?auto=format&fit=crop&w=1600&q=80', 'Astronauts crash on a world ruled by intelligent apes.'),
   ('the-matrix-1999', 'The Matrix', '{"sci-fi","action"}', '{"Keanu Reeves","Carrie-Anne Moss"}', 1999, true, 'R', 'https://images.unsplash.com/photo-1525182008055-f88b95ff7980?auto=format&fit=crop&w=1600&q=80', 'A hacker discovers the nature of reality.'),
   ('rebel-moon-2023', 'Rebel Moon', '{"sci-fi","action"}', '{"Sofia Boutella","Charlie Hunnam"}', 2023, false, 'PG-13', 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=1600&q=80', 'A peaceful colony faces a tyrannical regent.'),

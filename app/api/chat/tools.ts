@@ -50,12 +50,23 @@ type SupabaseTitle = {
   slug: string;
   name: string;
   genres: string[];
-  cast: string[];
+  cast_members: string[];
   year: number | null;
   nostalgic: boolean | null;
   maturity_rating: string | null;
   hero_backdrop: string | null;
   hero_description: string | null;
+};
+
+type RecommendationItem = {
+  id: string;
+  title: string;
+  year?: number | null;
+  synopsis?: string | null;
+  runtimeMinutes?: number | null;
+  genres?: string[];
+  cast?: string[];
+  tags?: string[];
 };
 
 const FALLBACK_LAYOUT: HomeLayout = {
@@ -249,6 +260,19 @@ function toTileFromTitle(title: SupabaseTitle): HomeTile {
   };
 }
 
+function toRecommendationItem(title: SupabaseTitle): RecommendationItem {
+  return {
+    id: title.slug,
+    title: title.name,
+    year: title.year,
+    synopsis: title.hero_description,
+    runtimeMinutes: null,
+    genres: title.genres,
+    cast: title.cast_members,
+    tags: title.nostalgic ? ['Classic'] : ['Fresh'],
+  };
+}
+
 async function buildPersonalizedLayout(options: { focus?: 'genre' | 'actor'; reason?: string } = {}) {
   const client = ensureSupabase();
   const [controls, titles, history, preferences, profile] = await Promise.all([
@@ -303,7 +327,9 @@ async function buildPersonalizedLayout(options: { focus?: 'genre' | 'actor'; rea
 
   if (preferredActor) {
     const actorTiles = allowedTitles
-      .filter(title => title.cast?.some(actor => actor.toLowerCase() === preferredActor.value.toLowerCase()))
+      .filter(title =>
+        title.cast_members?.some(actor => actor.toLowerCase() === preferredActor.value.toLowerCase()),
+      )
       .slice(0, 4)
       .map(toTileFromTitle);
     if (actorTiles.length > 0) {
@@ -467,7 +493,7 @@ export const tools = {
         .from('mvnte_titles')
         .select('*')
         .contains('genres', [genre])
-        .limit(20);
+        .limit(40);
       if (error) {
         console.error('[tools.fetchRecommendations]', error);
       }
@@ -475,13 +501,14 @@ export const tools = {
       const titles = filterByParentalControls((data as SupabaseTitle[]) ?? [], controls)
         .filter(title => (nostalgia ? title.nostalgic === true : title.nostalgic === false))
         .slice(0, limit);
+      const items = titles.map(toRecommendationItem);
       return JSON.stringify({
         genre,
         nostalgia,
-        results: titles,
-        fallbackApplied: titles.length < limit,
-        speechSummary: titles.length
-          ? `Here are ${titles.length} ${nostalgia ? 'nostalgic' : 'fresh'} ${genre} picks.`
+        results: items,
+        fallbackApplied: items.length < limit,
+        speechSummary: items.length
+          ? `Here are ${items.length} ${nostalgia ? 'nostalgic' : 'fresh'} ${genre} picks.`
           : `I could not find ${genre} titles that meet your filters.`,
       });
     },
