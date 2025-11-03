@@ -9,7 +9,7 @@ import {
   isToolUIPart,
 } from 'ai';
 import { processToolCalls } from './utils';
-import { getTitleById, tools } from './tools';
+import { tools } from './tools';
 import { HumanInTheLoopUIMessage } from './types';
 
 const systemPrompt = `You are the Netflix Voice Concierge for Emilio and Melissa. Stay warm, concise, and always keep humans in control.
@@ -57,57 +57,7 @@ export async function POST(req: Request) {
     originalMessages: messages,
     execute: async ({ writer }) => {
       console.log('[api/chat] processToolCalls start');
-      const processedMessages = await processToolCalls(
-        { messages, writer, tools },
-        {
-          playPreview: async ({ titleId, title }: { titleId: string; title: string }) => {
-            const meta = getTitleById(titleId);
-            console.log('[api/chat] playPreview approved', { titleId, title, hasMeta: Boolean(meta) });
-            if (!meta) {
-              return JSON.stringify({
-                status: 'preview-error',
-                titleId,
-                title,
-                message:
-                  'Preview metadata was unavailable for this title. Offer an alternative from the recommendation list.',
-              });
-            }
-
-            return JSON.stringify({
-              status: 'preview-started',
-              titleId,
-              title,
-              playbackId: meta.previewPlaybackId,
-              previewUrl: meta.previewUrl,
-              backdropUrl: meta.backdropUrl,
-              poster: meta.previewPoster ?? meta.backdropUrl,
-              message: `Preview started for ${title}.`,
-            });
-          },
-          startPlayback: async ({ titleId, title }: { titleId: string; title: string }) => {
-            const meta = getTitleById(titleId);
-            console.log('[api/chat] startPlayback approved', { titleId, title, hasMeta: Boolean(meta) });
-            if (!meta) {
-              return JSON.stringify({
-                status: 'playback-error',
-                titleId,
-                title,
-                message:
-                  'Playback metadata was unavailable. Offer a different catalog title or retry the preview.',
-              });
-            }
-
-            return JSON.stringify({
-              status: 'playback-started',
-              titleId,
-              title,
-              playbackId: meta.previewPlaybackId,
-              runtimeMinutes: meta.runtimeMinutes,
-              message: `Enjoy ${title}! The feature is now playing on the living room TV.`,
-            });
-          },
-        },
-      );
+      const processedMessages = await processToolCalls({ messages, writer, tools }, {});
       console.log('[api/chat] processToolCalls done');
 
       const conversationState = analyzeConversationState(processedMessages);

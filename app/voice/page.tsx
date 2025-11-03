@@ -3,6 +3,7 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, getToolName, isToolUIPart } from 'ai';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { tools } from '../api/chat/tools';
 import { APPROVAL, getToolsRequiringConfirmation } from '../api/chat/utils';
@@ -146,6 +147,7 @@ export default function Chat() {
       transport: new DefaultChatTransport({ api: '/api/chat' }),
     });
 
+  const router = useRouter();
   const [input, setInput] = useState('');
   const [transcript, setTranscript] = useState('');
   const [pendingUserEcho, setPendingUserEcho] = useState<string | null>(null);
@@ -159,10 +161,30 @@ export default function Chat() {
   const chatScrollAnchorRef = useRef<HTMLDivElement | null>(null);
   const conversationLanguageRef = useRef<string>('en');
   const MIN_MESSAGE_INTERVAL = 750;
+  const handledActionsRef = useRef(new Set<string>());
 
   useEffect(() => {
     conversationLanguageRef.current = conversationLanguage;
   }, [conversationLanguage]);
+
+  useEffect(() => {
+    messages.forEach(message => {
+      message.parts?.forEach((part, index) => {
+        if (!isToolUIPart(part)) {
+          return;
+        }
+        const rawOutput = (part as any).output ?? (part as any).result;
+        const payload = safeJsonParse<{ action?: string }>(rawOutput);
+        if (payload?.action === 'navigate-home') {
+          const actionId = `${message.id ?? 'msg'}-${index}`;
+          if (!handledActionsRef.current.has(actionId)) {
+            handledActionsRef.current.add(actionId);
+            router.push('/');
+          }
+        }
+      });
+    });
+  }, [messages, router]);
 
   const normalizeLanguage = useCallback((language?: string | null) => {
     if (!language) {
@@ -341,11 +363,39 @@ export default function Chat() {
           </div>
         );
       }
+      case 'updateHomeLayout':
+      case 'updateParentalControls': {
+        const payload = coerceToolPayload<any>(rawOutput);
+        return (
+          <div className="space-y-3 rounded-xl border border-zinc-800 bg-[rgba(20,20,20,0.85)] p-4 text-sm text-netflix-gray-200">
+            <div className="text-xs uppercase tracking-[0.35em] text-netflix-gray-500">
+              Home experience updated
+            </div>
+            <p>{payload?.summary ?? 'Homepage refreshed.'}</p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => router.push('/')}
+                className="inline-flex items-center rounded-full bg-netflix-red px-4 py-2 text-xs font-semibold text-white shadow-[0_12px_30px_rgba(229,9,20,0.25)] transition hover:bg-[#b20710]"
+              >
+                View homepage now
+              </button>
+            </div>
+          </div>
+        );
+      }
+      case 'showUpdatedHome': {
+        return (
+          <div className="rounded-xl border border-zinc-800 bg-[rgba(20,20,20,0.85)] p-4 text-sm text-netflix-gray-200">
+            Opening your personalized home…
+          </div>
+        );
+      }
       case 'playPreview': {
         const payload = coerceToolPayload<PreviewPayload>(rawOutput);
         if (!payload) {
-      return null;
-    }
+          return null;
+        }
         return (
           <div className="rounded-lg border border-[rgba(229,9,20,0.4)] bg-[rgba(229,9,20,0.12)] p-3 text-sm text-netflix-gray-100">
             {payload.message ?? 'Preview started.'}

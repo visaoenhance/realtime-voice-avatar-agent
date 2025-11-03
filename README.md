@@ -25,17 +25,24 @@ This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, vo
    ```bash
    cp .env.example .env.local
    ```
-   Edit `.env.local` and add your OpenAI key (and optionally Mux API credentials if you intend to create assets programmatically):
+   Edit `.env.local` and add your OpenAI key (and optionally Mux API credentials if you intend to create assets programmatically). Add Supabase environment variables if you want the data-driven personalization flows:
    ```
    OPENAI_API_KEY=sk-...
    MUX_TOKEN_ID=...
    MUX_TOKEN_SECRET=...
+   SUPABASE_URL=https://...supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=...
+   DEMO_PROFILE_ID=00000000-0000-0000-0000-000000000001
    ```
 
-3. **Point preview clips at your Mux assets**
+3. **Seed Supabase (optional but recommended)**
+   - Create a new Supabase project.
+   - Open the SQL editor and run the script in `supabase/schema.sql` to create the `mvnte_` tables and seed demo data.
+
+4. **Point preview clips at your Mux assets**
    Edit `data/muxTrailers.ts` and update the `playbackId` / `poster` pairs for each title with the playback IDs from your Mux dashboard.
 
-4. **Explore both flows**
+5. **Explore both flows**
    - Visit [http://localhost:3000](http://localhost:3000) to see the traditional tile-based home screen with a call-to-action for the concierge.
    - Jump to [http://localhost:3000/voice](http://localhost:3000/voice) to launch the fully voice-driven experience.
-5. When ready to commit, say "Let's watch this"; the assistant triggers `startPlayback`, again asking for approval before confirming the stream is live and speaking the confirmation aloud (unless muted).
+6. When ready to commit, say "Let's watch this"; the assistant triggers `startPlayback`, again asking for approval before confirming the stream is live and speaking the confirmation aloud (unless muted).
