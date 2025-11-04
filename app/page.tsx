@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export type HomeTile = {
   title: string;
@@ -128,6 +128,95 @@ function TileCard({ title, tag, image, className }: TileCardProps) {
         </div>
         </div>
       </div>
+  );
+}
+
+function RowCarousel({ row }: { row: HomeRow }) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) {
+      return;
+    }
+    const maxScrollLeft = el.scrollWidth - el.clientWidth;
+    setCanScrollLeft(el.scrollLeft > 8);
+    setCanScrollRight(el.scrollLeft < maxScrollLeft - 8);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) {
+      return;
+    }
+    updateScrollState();
+    const handleResize = () => updateScrollState();
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [updateScrollState, row.tiles.length]);
+
+  const handleScroll = useCallback(() => {
+    updateScrollState();
+  }, [updateScrollState]);
+
+  const scrollByAmount = useCallback(
+    (direction: 'left' | 'right') => {
+      const el = scrollRef.current;
+      if (!el) {
+        return;
+      }
+      const scrollDistance = Math.max(el.clientWidth * 0.8, 240);
+      const delta = direction === 'left' ? -scrollDistance : scrollDistance;
+      el.scrollBy({ left: delta, behavior: 'smooth' });
+    },
+    [],
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="text-sm font-semibold uppercase tracking-[0.35em] text-netflix-gray-300">
+        {row.title}
+      </div>
+      <div className="relative">
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="no-scrollbar flex gap-4 overflow-x-auto pb-4 pr-4 snap-x snap-mandatory scroll-smooth"
+        >
+          {row.tiles.map(tile => (
+            <TileCard
+              key={`${row.title}-${tile.title}`}
+              {...tile}
+              className="w-[220px] flex-none snap-start"
+            />
+          ))}
+        </div>
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-netflix-black/95 to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-netflix-black/95 to-transparent" />
+        <button
+          type="button"
+          aria-label="Scroll left"
+          onClick={() => scrollByAmount('left')}
+          disabled={!canScrollLeft}
+          className="absolute left-4 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-2xl font-semibold text-white shadow-lg transition hover:bg-black/90 disabled:cursor-default disabled:bg-black/40"
+        >
+          <span className="-translate-x-[1px]">&lt;</span>
+        </button>
+        <button
+          type="button"
+          aria-label="Scroll right"
+          onClick={() => scrollByAmount('right')}
+          disabled={!canScrollRight}
+          className="absolute right-4 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-2xl font-semibold text-white shadow-lg transition hover:bg-black/90 disabled:cursor-default disabled:bg-black/40"
+        >
+          <span className="translate-x-[1px]">&gt;</span>
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -275,27 +364,7 @@ export default function Home() {
 
         <section key={`rows-${animateKey}`} className="space-y-10 animate-fade-up">
           {rows.map(row => (
-            <div key={row.title} className="space-y-4">
-              <div className="text-sm font-semibold uppercase tracking-[0.35em] text-netflix-gray-300">
-                {row.title}
-              </div>
-              <div className="relative">
-                <div
-                  className="flex gap-4 overflow-x-auto pb-4 pr-4 snap-x snap-mandatory"
-                  style={{ scrollbarWidth: 'thin' }}
-                >
-                  {row.tiles.map(tile => (
-                    <TileCard
-                      key={`${row.title}-${tile.title}`}
-                      {...tile}
-                      className="w-[220px] flex-none snap-start"
-                    />
-                  ))}
-                </div>
-                <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-netflix-black/95 to-transparent" />
-                <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-netflix-black/95 to-transparent" />
-              </div>
-            </div>
+            <RowCarousel key={row.title} row={row} />
           ))}
         </section>
 

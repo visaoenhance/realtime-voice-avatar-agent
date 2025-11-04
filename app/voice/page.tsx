@@ -12,6 +12,59 @@ import { MuxPreviewPlayer } from '@/components/MuxPreviewPlayer';
 import { useAssistantSpeech } from '@/hooks/useAssistantSpeech';
 import { useAudioTranscription } from '@/hooks/useAudioTranscription';
 
+const SUPPORTED_LANGUAGE_CODES = new Set(['en', 'es', 'fr', 'de', 'it', 'pt', 'ja', 'zh', 'ko']);
+
+const LANGUAGE_ALIASES: Record<string, string> = {
+  en: 'en',
+  'en-us': 'en',
+  'en-gb': 'en',
+  english: 'en',
+  latin: 'es',
+  'latin american': 'es',
+  'latin-american': 'es',
+  'latin american spanish': 'es',
+  dominican: 'es',
+  'dominican spanish': 'es',
+  es: 'es',
+  spanish: 'es',
+  espanol: 'es',
+  castellano: 'es',
+  it: 'it',
+  italian: 'it',
+  italiano: 'it',
+  fr: 'fr',
+  french: 'fr',
+  francais: 'fr',
+  de: 'de',
+  german: 'de',
+  deutsch: 'de',
+  pt: 'pt',
+  portuguese: 'pt',
+  portugues: 'pt',
+  'pt-br': 'pt',
+  ja: 'ja',
+  japanese: 'ja',
+  zh: 'zh',
+  chinese: 'zh',
+  mandarin: 'zh',
+  'zh-cn': 'zh',
+  'zh-tw': 'zh',
+  ko: 'ko',
+  korean: 'ko',
+};
+
+const LANGUAGE_LABELS: Record<string, string> = {
+  en: 'English',
+  es: 'Spanish',
+  fr: 'French',
+  de: 'German',
+  it: 'Italian',
+  pt: 'Portuguese',
+  ja: 'Japanese',
+  zh: 'Chinese',
+  ko: 'Korean',
+};
+
 type HouseholdProfilePayload = {
   profile?: {
     primaryViewer?: string;
@@ -188,9 +241,38 @@ export default function Chat() {
 
   const normalizeLanguage = useCallback((language?: string | null) => {
     if (!language) {
+      const previous = conversationLanguageRef.current;
+      if (previous && SUPPORTED_LANGUAGE_CODES.has(previous)) {
+        return previous;
+      }
       return 'en';
     }
-    return language.toLowerCase().split('-')[0];
+
+    const raw = language.trim().toLowerCase();
+    const directAlias = LANGUAGE_ALIASES[raw];
+    if (directAlias && SUPPORTED_LANGUAGE_CODES.has(directAlias)) {
+      return directAlias;
+    }
+
+    const base = raw.split('-')[0];
+    const baseAlias = LANGUAGE_ALIASES[base] ?? base;
+    if (SUPPORTED_LANGUAGE_CODES.has(baseAlias)) {
+      return baseAlias;
+    }
+
+    const previous = conversationLanguageRef.current;
+    if (previous && SUPPORTED_LANGUAGE_CODES.has(previous)) {
+      console.info('[voice->chat] unsupported language detected, sticking with previous', {
+        detected: raw,
+        fallback: previous,
+      });
+      return previous;
+    }
+
+    console.info('[voice->chat] unsupported language detected, falling back to English', {
+      detected: raw,
+    });
+    return 'en';
   }, []);
 
   const {
@@ -520,6 +602,10 @@ export default function Chat() {
       }
     }
 
+    if (conversationLanguageRef.current !== 'en') {
+      speechSummary = undefined;
+    }
+
     const fullText = (lastAssistant.parts ?? [])
       .map(part => (part.type === 'text' && part.text ? part.text : ''))
       .filter(Boolean)
@@ -530,8 +616,13 @@ export default function Chat() {
       return;
     }
 
-    const sentences = fullText.split(/(?<=[.!?])\s+/).filter(Boolean);
-    const trimmed = sentences.slice(0, 1).join(' ').trim();
+    const sentences = fullText
+      .split(/(?<=[.!?])\s+/)
+      .map(segment => segment.trim())
+      .filter(Boolean);
+    const trimmed = conversationLanguageRef.current === 'en'
+      ? sentences.slice(0, 1).join(' ').trim()
+      : sentences.slice(0, 2).join(' ').trim();
 
     const speechText = speechSummary ?? (trimmed || sentences[0] || fullText);
     speakAssistant(messageId, speechText, { language: conversationLanguageRef.current });
@@ -652,7 +743,7 @@ export default function Chat() {
       },
       {
         label: 'Language',
-        value: conversationLanguage.toUpperCase(),
+        value: LANGUAGE_LABELS[conversationLanguage] ?? conversationLanguage.toUpperCase(),
         state: 'ok' as const,
       },
       ...(voiceError
