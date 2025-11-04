@@ -105,10 +105,12 @@ const DEFAULT_LAYOUT: HomeLayout = {
   ],
 };
 
-function TileCard({ title, tag, image }: HomeTile) {
+type TileCardProps = HomeTile & { className?: string };
+
+function TileCard({ title, tag, image, className }: TileCardProps) {
   return (
     <div
-      className="group relative aspect-video w-full overflow-hidden rounded-2xl border border-zinc-800 bg-black/30 shadow-lg transition hover:-translate-y-1 hover:border-zinc-700"
+      className={`group relative aspect-video min-w-[200px] max-w-[280px] shrink-0 overflow-hidden rounded-2xl border border-zinc-800 bg-black/30 shadow-lg transition hover:-translate-y-1 hover:border-zinc-700 ${className ?? ''}`}
       style={{
         backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.75) 100%), url(${image})`,
         backgroundSize: 'cover',
@@ -124,8 +126,8 @@ function TileCard({ title, tag, image }: HomeTile) {
         <div className="font-semibold text-sm text-slate-100 drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
           {title}
         </div>
+        </div>
       </div>
-    </div>
   );
 }
 
@@ -216,14 +218,14 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-4">
             <div className="hidden text-xs text-netflix-gray-400 md:block">{statusLabel}</div>
-            <button
+          <button
               type="button"
               onClick={handleReset}
               className="rounded-full border border-zinc-700 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-netflix-gray-200 transition hover:border-zinc-500 hover:text-white"
               disabled={isLoading}
             >
               Reset Layout
-            </button>
+          </button>
             <Link
               href="/voice"
               className="rounded-full bg-netflix-red px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white shadow-[0_12px_30px_rgba(229,9,20,0.25)] transition hover:bg-[#b20710]"
@@ -259,16 +261,16 @@ export default function Home() {
               >
                 {hero.cta}
               </Link>
-              <button
-                type="button"
+                            <button
+                              type="button"
                 onClick={handleReset}
                 disabled={isLoading}
                 className="inline-flex items-center gap-2 rounded-full border border-zinc-700 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-netflix-gray-200 transition hover:border-zinc-500 hover:text-white"
               >
                 Continue Watching
-              </button>
-            </div>
-          </div>
+                            </button>
+                          </div>
+                        </div>
         </section>
 
         <section key={`rows-${animateKey}`} className="space-y-10 animate-fade-up">
@@ -277,10 +279,21 @@ export default function Home() {
               <div className="text-sm font-semibold uppercase tracking-[0.35em] text-netflix-gray-300">
                 {row.title}
               </div>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                {row.tiles.map(tile => (
-                  <TileCard key={`${row.title}-${tile.title}`} {...tile} />
-                ))}
+              <div className="relative">
+                <div
+                  className="flex gap-4 overflow-x-auto pb-4 pr-4 snap-x snap-mandatory"
+                  style={{ scrollbarWidth: 'thin' }}
+                >
+                  {row.tiles.map(tile => (
+                    <TileCard
+                      key={`${row.title}-${tile.title}`}
+                      {...tile}
+                      className="w-[220px] flex-none snap-start"
+                    />
+                  ))}
+                </div>
+                <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-netflix-black/95 to-transparent" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-netflix-black/95 to-transparent" />
               </div>
             </div>
           ))}

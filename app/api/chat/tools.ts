@@ -148,6 +148,8 @@ const FALLBACK_LAYOUT: HomeLayout = {
   ],
 };
 
+const MAX_ROW_TILES = 12;
+
 function ensureSupabase() {
   if (!supabase) {
     throw new Error('Supabase is not configured. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to use data-driven actions.');
@@ -315,7 +317,7 @@ async function buildPersonalizedLayout(options: { focus?: 'genre' | 'actor'; rea
   if (topGenre) {
     const tiles = allowedTitles
       .filter(title => title.genres?.map(g => g.toLowerCase()).includes(topGenre))
-      .slice(0, 4)
+      .slice(0, MAX_ROW_TILES)
       .map(toTileFromTitle);
     if (tiles.length > 0) {
       rows.push({
@@ -330,7 +332,7 @@ async function buildPersonalizedLayout(options: { focus?: 'genre' | 'actor'; rea
       .filter(title =>
         title.cast_members?.some(actor => actor.toLowerCase() === preferredActor.value.toLowerCase()),
       )
-      .slice(0, 4)
+      .slice(0, MAX_ROW_TILES)
       .map(toTileFromTitle);
     if (actorTiles.length > 0) {
       rows.push({
@@ -342,7 +344,7 @@ async function buildPersonalizedLayout(options: { focus?: 'genre' | 'actor'; rea
 
   const freshTiles = allowedTitles
     .filter(title => title.nostalgic === false)
-    .slice(0, 4)
+    .slice(0, MAX_ROW_TILES)
     .map(toTileFromTitle);
   if (freshTiles.length > 0) {
     rows.push({ title: 'Fresh Picks for Tonight', tiles: freshTiles });
@@ -516,12 +518,10 @@ export const tools = {
   updateHomeLayout: tool({
     description:
       'Generate a personalized homepage layout from view history and preferences. Use canonical genres and respect parental controls.',
-    inputSchema: z
-      .object({
-        focus: z.enum(['genre', 'actor']).optional(),
-        reason: z.string().optional(),
-      })
-      .optional(),
+    inputSchema: z.object({
+      focus: z.enum(['genre', 'actor']).optional(),
+      reason: z.string().optional(),
+    }),
     outputSchema: z.string(),
     async execute(args) {
       if (!supabase) {
@@ -583,8 +583,10 @@ export const tools = {
     },
   }),
   showUpdatedHome: tool({
-    description: 'Navigate the UI to display the updated homepage layout.',
-    inputSchema: z.object({}).strip(),
+    description: 'Navigate the UI to display the updated homepage layout after the household confirms they want to see it.',
+    inputSchema: z.object({
+      confirmed: z.literal(true).describe('Must be true and only set after the household says they want to see the updated homepage.'),
+    }),
     outputSchema: z.string(),
     async execute() {
       return JSON.stringify({
@@ -617,7 +619,8 @@ export const tools = {
     },
   }),
   startPlayback: tool({
-    description: 'Start playback for a selected title slug.',
+    description:
+      'Start playback for a selected title slug. Only use after a preview has been approved and the household explicitly said they are ready to watch.',
     inputSchema: z.object({
       titleId: z.string(),
       title: z.string(),

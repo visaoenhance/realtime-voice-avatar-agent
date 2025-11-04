@@ -1,8 +1,14 @@
 'use client';
 
+import type { ComponentType } from 'react';
 import dynamic from 'next/dynamic';
 
-const MuxPlayer = dynamic(() => import('@mux/mux-player-react'), { ssr: false });
+const MuxPlayer = dynamic(async () => {
+  const mod = await import('@mux/mux-player-react');
+  return (mod as { default: ComponentType<any> }).default;
+}, {
+  ssr: false,
+});
 
 type MuxPreviewPlayerProps = {
   playbackId: string;
