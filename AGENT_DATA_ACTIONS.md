@@ -10,7 +10,7 @@ Represents the single demo household (no auth).
 | --- | --- | --- |
 | id | uuid (PK) | Static UUID seeded in DB |
 | primary_viewer | text | "Emilio" |
-| partner_name | text | "Melissa" |
+| partner_name | text | "Ida" |
 | language | text | Current concierge language hint (default `en`) |
 
 ### 2. `titles`

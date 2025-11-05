@@ -63,7 +63,7 @@ insert into mvnte_profiles (id, primary_viewer, partner_name, language, default_
 values (
   '00000000-0000-0000-0000-000000000001',
   'Emilio',
-  'Melissa',
+  'Ida',
   'en',
   '{
     "hero": {

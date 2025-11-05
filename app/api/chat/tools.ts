@@ -401,7 +401,7 @@ async function fetchHouseholdContext() {
     return {
       profile: {
         primaryViewer: 'Emilio',
-        partnerName: 'Melissa',
+        partnerName: 'Ida',
       },
       preferences: ['Action', 'Fantasy', 'Sci-Fi', 'Martial Arts'],
       comfort: ['Planet of the Apes (1968)', 'The Matrix', 'Crouching Tiger, Hidden Dragon'],
