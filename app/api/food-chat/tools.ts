@@ -384,6 +384,7 @@ export const foodTools = {
 
       const client = ensureSupabase();
       const payload = {
+        id: DEMO_PROFILE_ID,
         profile_id: DEMO_PROFILE_ID,
         favorite_cuisines: favoriteCuisines ?? null,
         disliked_cuisines: dislikedCuisines ?? null,

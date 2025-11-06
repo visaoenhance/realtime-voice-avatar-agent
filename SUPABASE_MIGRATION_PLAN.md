@@ -24,6 +24,7 @@
   - `budget_range text`
   - `notes text`
   - `updated_at timestamptz`
+  - **unique constraint** on `profile_id` so the concierge can upsert preferences per household
 
 - `fc_restaurants`
   - `id uuid primary key`
@@ -87,8 +88,9 @@
 ### Migration Ordering
 1. Create schema and tables above
 2. Seed baseline profile, preferences, restaurants, orders, layout
-3. Grant RLS policies: allow service-role writes, anon read access to `fc_restaurants` & `fc_layouts`
-4. Update Supabase SQL snippets for `fc_order_events` and `fc_feedback` to allow insert via service role
+3. Ensure `fc_preferences` has `UNIQUE (profile_id)` (run `alter table fc_preferences add constraint fc_preferences_profile_id_key unique (profile_id);` if upgrading an older schema)
+4. Grant RLS policies: allow service-role writes, anon read access to `fc_restaurants` & `fc_layouts`
+5. Update Supabase SQL snippets for `fc_order_events` and `fc_feedback` to allow insert via service role
 
 ### Follow-Up
 - Mirror the fallback sample data with real Supabase rows to keep experience consistent

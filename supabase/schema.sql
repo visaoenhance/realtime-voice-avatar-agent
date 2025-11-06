@@ -170,7 +170,7 @@ create table if not exists fc_profiles (
 
 create table if not exists fc_preferences (
   id uuid primary key default uuid_generate_v4(),
-  profile_id uuid references fc_profiles(id) on delete cascade,
+  profile_id uuid references fc_profiles(id) on delete cascade unique,
   favorite_cuisines text[] default '{}',
   disliked_cuisines text[] default '{}',
   dietary_tags text[] default '{}',
