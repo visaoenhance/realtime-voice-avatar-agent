@@ -80,7 +80,8 @@ export default async function StoreItemsPage({ params, searchParams }: StoreItem
     );
   }
 
-  const activeCategorySlug = resolvedSearchParams.category ?? menu[0]?.slug ?? '';
+  const rawCategory = (resolvedSearchParams as Record<string, string | string[] | undefined>).category;
+  const activeCategorySlug = (Array.isArray(rawCategory) ? rawCategory[0] : rawCategory) ?? menu[0]?.slug ?? '';
   const activeCategory = menu.find(category => category.slug === activeCategorySlug) ?? menu[0];
 
   return (

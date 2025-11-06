@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DefaultChatTransport, getToolName, isToolUIPart } from 'ai';
 import { useChat } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
@@ -16,14 +16,432 @@ const QUICK_PROMPTS = [
   'Update my preferences to add vegetarian and medium spice.',
 ];
 
+const currencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+});
+
+function formatMoney(value?: number | null): string {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return '$0.00';
+  }
+  return currencyFormatter.format(value);
+}
+
+function normalizeNumeric(value: unknown): number | null {
+  if (value == null) {
+    return null;
+  }
+  if (typeof value === 'number') {
+    return Number.isNaN(value) ? null : value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+
+type CartOption = {
+  id?: string;
+  label: string;
+  priceAdjustment?: number | null;
+};
+
+type CartItem = {
+  id: string;
+  menuItemId?: string;
+  name: string;
+  quantity: number;
+  totalPrice: number;
+  options: CartOption[];
+  instructions?: string | null;
+};
+
+type CartSummary = {
+  id: string;
+  restaurantId?: string | null;
+  restaurantSlug?: string | null;
+  restaurantName?: string | null;
+  status?: string | null;
+  subtotal: number;
+  items: CartItem[];
+  updatedAt?: string | null;
+};
+
+type OrderItemSummary = {
+  id: string;
+  name: string;
+  quantity: number;
+  totalPrice?: number | null;
+};
+
+type OrderSummary = {
+  id: string;
+  restaurantName: string;
+  cuisine?: string | null;
+  total?: number | null;
+  createdAt?: string | null;
+  items?: OrderItemSummary[];
+};
+
+type ImagePreview = {
+  imageUrl: string;
+  name?: string | null;
+  description?: string | null;
+  price?: number | null;
+  tags?: string[];
+  restaurantName?: string | null;
+  sectionTitle?: string | null;
+  calories?: number | null;
+};
+
+type MenuItemPreview = {
+  name?: string | null;
+  description?: string | null;
+  price?: number | null;
+  tags?: string[];
+  image?: string | null;
+  calories?: number | null;
+  sectionTitle?: string | null;
+  restaurantName?: string | null;
+};
+
+function renderToolOutput(toolName: string, payload: any) {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  switch (toolName) {
+    case 'getRestaurantMenu': {
+      const sections = Array.isArray(payload.sections) ? payload.sections : [];
+      const restaurantName = payload.restaurant?.name ?? 'the restaurant';
+
+      if (sections.length === 0) {
+        return <div className="text-xs text-slate-500">No menu sections available right now.</div>;
+      }
+
+      return (
+        <div className="space-y-4">
+          <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-600">
+            Menu Overview – {restaurantName}
+          </div>
+          {sections.map((section: any) => (
+            <div key={section.id ?? section.slug} className="space-y-1">
+              <div className="text-sm font-semibold text-slate-800">{section.title}</div>
+              {section.description ? (
+                <p className="text-xs text-slate-500">{section.description}</p>
+              ) : null}
+              <ul className="mt-1 space-y-2 text-xs text-slate-600">
+                {(section.items ?? []).slice(0, 3).map((item: any) => (
+                  <li key={item.id ?? item.slug} className="flex items-start gap-3">
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt={item.name ?? 'Menu item'}
+                        className="h-12 w-12 rounded-lg object-cover shadow-sm"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-200 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                        {item.name?.slice(0, 2) ?? 'MI'}
+                      </div>
+                    )}
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-slate-700">{item.name}</span>
+                        <span className="text-slate-500">
+                          {formatMoney(typeof item.price === 'number' ? item.price : Number(item.price ?? 0))}
+                        </span>
+                      </div>
+                      {item.tags && item.tags.length > 0 ? (
+                        <div className="text-[11px] text-slate-400">{item.tags.join(', ')}</div>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+                {(section.items ?? []).length > 3 ? (
+                  <li className="text-[10px] uppercase tracking-[0.2em] text-slate-400">plus more…</li>
+                ) : null}
+              </ul>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    case 'searchMenuItems': {
+      const results = Array.isArray(payload.results) ? payload.results : [];
+      if (results.length === 0) {
+        return <div className="text-xs text-slate-500">No menu items matched those filters.</div>;
+      }
+
+      return (
+        <div className="space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-600">Menu Matches</div>
+          <ul className="space-y-2 text-xs text-slate-600">
+            {results.map((item: any) => (
+              <li key={item.id ?? item.slug} className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                {item.image ? (
+                  <img
+                    src={item.image}
+                    alt={item.name ?? 'Menu item'}
+                    className="h-14 w-14 rounded-lg object-cover shadow-sm"
+                  />
+                ) : (
+                  <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-slate-200 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    {item.name?.slice(0, 2) ?? 'MI'}
+                  </div>
+                )}
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-slate-700">{item.name}</span>
+                    <span className="text-slate-500">
+                      {formatMoney(typeof item.price === 'number' ? item.price : Number(item.price ?? 0))}
+                    </span>
+                  </div>
+                  {item.sectionTitle ? (
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">{item.sectionTitle}</div>
+                  ) : null}
+                  {item.description ? (
+                    <p className="text-[11px] text-slate-500">{item.description}</p>
+                  ) : null}
+                  {item.tags && item.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-1 text-[10px] text-emerald-600">
+                      {item.tags.map((tag: string) => (
+                        <span key={tag} className="rounded-full bg-emerald-100 px-2 py-0.5">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    }
+    case 'addItemToCart': {
+      if (!payload || payload.success === false) {
+        return <div className="text-xs text-red-500">{payload?.message ?? 'Unable to add item to cart.'}</div>;
+      }
+      const item = payload.item ?? {};
+      const options = Array.isArray(item.options) ? item.options : [];
+
+      return (
+        <div className="space-y-2 text-xs text-slate-600">
+          <div className="text-sm font-semibold text-slate-800">Added to Cart</div>
+          <div className="flex items-center justify-between">
+            <span>
+              {item.quantity ?? 1} × {item.name ?? 'Menu item'}
+            </span>
+            <span className="font-semibold text-slate-700">{formatMoney(typeof item.linePrice === 'number' ? item.linePrice : Number(item.linePrice ?? 0))}</span>
+          </div>
+          {options.length > 0 ? (
+            <ul className="ml-4 list-disc space-y-1 text-[11px] text-slate-500">
+              {options.map((option: any) => (
+                <li key={option.id ?? option.label}>
+                  {option.label}
+                  {typeof option.priceAdjustment === 'number' && option.priceAdjustment !== 0
+                    ? ` (${formatMoney(option.priceAdjustment)})`
+                    : ''}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+            Subtotal {formatMoney(typeof payload.subtotal === 'number' ? payload.subtotal : Number(payload.subtotal ?? 0))}
+          </div>
+        </div>
+      );
+    }
+    case 'viewCart': {
+      if (!payload || payload.success === false) {
+        return <div className="text-xs text-red-500">{payload?.message ?? 'Could not load the cart.'}</div>;
+      }
+
+      const cart = payload.cart;
+      if (!cart || !Array.isArray(cart.items) || cart.items.length === 0) {
+        return <div className="text-xs text-slate-500">Your cart is empty.</div>;
+      }
+
+      return (
+        <div className="space-y-3 text-xs text-slate-600">
+          <div className="text-sm font-semibold text-slate-800">
+            Cart – {payload.restaurant?.name ?? 'Current selection'}
+          </div>
+          <ul className="space-y-2">
+            {cart.items.map((item: any) => (
+              <li key={item.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-center justify-between">
+                  <span>
+                    {item.quantity} × {item.name}
+                  </span>
+                  <span className="font-semibold text-slate-700">{formatMoney(typeof item.totalPrice === 'number' ? item.totalPrice : Number(item.totalPrice ?? 0))}</span>
+                </div>
+                {item.options && item.options.length > 0 ? (
+                  <ul className="ml-4 list-disc space-y-1 text-[11px] text-slate-500">
+                    {item.options.map((option: any) => (
+                      <li key={option.id ?? option.label}>
+                        {option.label}
+                        {typeof option.priceAdjustment === 'number' && option.priceAdjustment !== 0
+                          ? ` (${formatMoney(option.priceAdjustment)})`
+                          : ''}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {item.instructions ? (
+                  <div className="mt-1 text-[11px] italic text-slate-500">“{item.instructions}”</div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+          <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+            Subtotal {formatMoney(typeof cart.subtotal === 'number' ? cart.subtotal : Number(cart.subtotal ?? 0))}
+          </div>
+        </div>
+      );
+    }
+    case 'submitCartOrder': {
+      if (!payload || payload.success === false) {
+        return <div className="text-xs text-red-500">{payload?.message ?? 'Unable to submit the cart right now.'}</div>;
+      }
+
+      return (
+        <div className="space-y-1 text-xs text-slate-600">
+          <div className="text-sm font-semibold text-slate-800">Cart submitted</div>
+          <div>
+            {payload.itemCount ?? 0} item{payload.itemCount === 1 ? '' : 's'} totaling{' '}
+            {formatMoney(typeof payload.subtotal === 'number' ? payload.subtotal : Number(payload.subtotal ?? 0))}
+          </div>
+          <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Order ID {payload.orderId}</div>
+        </div>
+      );
+    }
+    case 'fetchMenuItemImage': {
+      if (!payload || payload.success === false) {
+        return <div className="text-xs text-red-500">{payload?.message ?? 'Unable to load that image.'}</div>;
+      }
+
+      const menuItem = payload.menuItem ?? {};
+      const price =
+        typeof menuItem.price === 'number'
+          ? menuItem.price
+          : menuItem.price != null
+          ? Number(menuItem.price)
+          : null;
+      const tags = Array.isArray(menuItem.tags) ? menuItem.tags : [];
+
+      return (
+        <div className="space-y-3 text-xs text-slate-600">
+          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-600">
+            Visual Preview
+          </div>
+          <div className="flex flex-col gap-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm md:flex-row">
+            <div className="overflow-hidden rounded-2xl bg-white md:flex-1">
+              {payload.imageUrl ? (
+                <img
+                  src={payload.imageUrl}
+                  alt={menuItem.name ?? 'Menu item'}
+                  className="h-64 w-full object-cover md:h-full"
+                />
+              ) : (
+                <div className="flex h-64 w-full items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-slate-400">
+                  No image available.
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col justify-between gap-3 md:w-80">
+              <div className="space-y-2">
+                <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
+                  {payload.restaurant?.name ?? 'Menu item'} highlight
+                </div>
+                <div className="text-lg font-semibold text-slate-900">{menuItem.name ?? 'Menu item'}</div>
+                {menuItem.sectionTitle ? (
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-emerald-600">{menuItem.sectionTitle}</div>
+                ) : null}
+                {menuItem.description ? <p className="text-sm text-slate-600">{menuItem.description}</p> : null}
+              </div>
+              <div className="space-y-2 text-sm text-slate-700">
+                {price != null && !Number.isNaN(price) ? (
+                  <div className="text-base font-semibold text-slate-900">{formatMoney(price)}</div>
+                ) : null}
+                {tags.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 text-[11px] text-emerald-700">
+                    {tags.map((tag: string) => (
+                      <span key={tag} className="rounded-full bg-emerald-100 px-2 py-0.5">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                {menuItem.calories ? (
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                    {menuItem.calories} calories
+                  </div>
+                ) : null}
+                <div className="text-[11px] text-slate-500">
+                  Would you like to add this to your cart or keep exploring?
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    default:
+      return null;
+  }
+}
+
 function extractTextParts(message: UIMessage): string[] {
   if (!message.parts) {
     return [];
   }
   return message.parts
-    .filter(part => part.type === 'text' && part.text)
-    .map(part => (part.text ?? '').trim())
-    .filter(Boolean);
+    .map(part => {
+      if (part.type === 'text') {
+        const candidate = (part as { text?: string }).text;
+        if (typeof candidate === 'string') {
+          const trimmed = candidate.trim();
+          return trimmed.length > 0 ? trimmed : null;
+        }
+      }
+      return null;
+    })
+    .filter((value): value is string => Boolean(value));
+}
+
+function formatTextPartForDisplay(text: string): string {
+  let formatted = text;
+  formatted = formatted.replace(/!\[[^\]]*\]\([^)]+\)/g, ' ').trim();
+  formatted = formatted.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  formatted = formatted.replace(/\*\*(.*?)\*\*/g, '$1');
+  formatted = formatted.replace(/__(.*?)__/g, '$1');
+  formatted = formatted.replace(/\*(.*?)\*/g, '$1');
+  formatted = formatted.replace(/_(.*?)_/g, '$1');
+  formatted = formatted.replace(/\s{2,}/g, ' ');
+  return formatted.trim();
+}
+
+function shouldOpenVisualPreview(raw: string): boolean {
+  const text = raw.toLowerCase();
+  if (!text || text.includes('menu')) {
+    return false;
+  }
+  return (
+    text.includes('looks like') ||
+    text.includes('look like') ||
+    text.includes('show me what') ||
+    text.includes('show what') ||
+    text.includes('see what') ||
+    text.includes('see the') ||
+    text.includes('show the') ||
+    text.includes('can i see') ||
+    text.includes('picture') ||
+    text.includes('photo') ||
+    text.includes('image')
+  );
 }
 
 type SpeechExtraction = {
@@ -63,10 +481,13 @@ function extractSpeechContent(message: UIMessage): SpeechExtraction | null {
     }
 
     if (parsed && typeof parsed === 'object' && typeof parsed.speechSummary === 'string') {
-      return {
-        content: parsed.speechSummary,
-        source: 'summary',
-      };
+      const summary = parsed.speechSummary.trim();
+      if (summary.length > 0) {
+        return {
+          content: summary,
+          source: 'summary',
+        };
+      }
     }
   }
 
@@ -80,9 +501,61 @@ export default function FoodCourtConcierge() {
 
   const [draft, setDraft] = useState('');
   const [transcript, setTranscript] = useState('');
+  const [cartSummary, setCartSummary] = useState<CartSummary | null>(null);
+  const [cartModalOpen, setCartModalOpen] = useState(false);
+  const [cartLoading, setCartLoading] = useState(false);
+  const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [cartActionMessage, setCartActionMessage] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<ImagePreview | null>(null);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [lastMenuItems, setLastMenuItems] = useState<MenuItemPreview[]>([]);
+  const [pendingVisualRequest, setPendingVisualRequest] = useState<string | null>(null);
 
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const attemptOpenVisualPreview = useCallback(
+    (items: MenuItemPreview[], fallbackRestaurantName?: string | null) => {
+      if (!pendingVisualRequest || items.length === 0) {
+        return false;
+      }
+      const normalizedQuery = pendingVisualRequest.toLowerCase();
+      const target =
+        items.find(item => {
+          const name = (item.name ?? '').toLowerCase();
+          if (!name) {
+            return false;
+          }
+          return normalizedQuery.includes(name);
+        }) ?? items[0];
+
+      if (!target || !target.image) {
+        return false;
+      }
+
+      const price = normalizeNumeric(target.price);
+      const calories = normalizeNumeric(target.calories);
+
+      setImagePreview({
+        imageUrl: target.image,
+        name: target.name ?? null,
+        description: target.description ?? null,
+        price,
+        tags: Array.isArray(target.tags) ? target.tags : [],
+        restaurantName: target.restaurantName ?? fallbackRestaurantName ?? null,
+        sectionTitle: target.sectionTitle ?? null,
+        calories,
+      });
+      setImageModalOpen(true);
+      setPendingVisualRequest(null);
+      return true;
+    },
+    [pendingVisualRequest, setImageModalOpen, setImagePreview, setPendingVisualRequest],
+  );
+
+  const chatContainerRef = useRef<HTMLDivElement | null>(null);
   const [hasSentInitialMessage, setHasSentInitialMessage] = useState(false);
+  const processedToolCallsRef = useRef<Set<string>>(new Set());
+  const cartFetchInFlightRef = useRef(false);
+  const ordersFetchInFlightRef = useRef(false);
 
   const {
     speak: speakAssistant,
@@ -130,12 +603,12 @@ export default function FoodCourtConcierge() {
     }
 
     const speech = extractSpeechContent(lastMessage);
-    if (!speech || speech.source === 'summary') {
+    if (!speech) {
       return;
     }
 
     const messageId = lastMessage.id ?? `assistant-${messages.length}`;
-    const signature = `${messageId}:${speech.content}`;
+    const signature = `${messageId}:${speech.source}:${speech.content}`;
 
     if (signature === lastSpokenSignatureRef.current) {
       return;
@@ -154,10 +627,62 @@ export default function FoodCourtConcierge() {
   }, [messages.length]);
 
   useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    const container = chatContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    const isNearBottom = distanceFromBottom < 200;
+
+    if (isNearBottom || status === 'streaming') {
+      window.requestAnimationFrame(() => {
+        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+      });
     }
   }, [messages, status]);
+
+  useEffect(() => {
+    if (!imageModalOpen) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setImageModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [imageModalOpen]);
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      return;
+    }
+    const last = messages[messages.length - 1];
+    if (last?.role !== 'user') {
+      return;
+    }
+    const text = extractTextParts(last).join(' ').trim();
+    if (!text) {
+      return;
+    }
+    if (shouldOpenVisualPreview(text)) {
+      setPendingVisualRequest(text);
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    if (!pendingVisualRequest || imageModalOpen) {
+      return;
+    }
+    if (lastMenuItems.length === 0) {
+      return;
+    }
+    attemptOpenVisualPreview(lastMenuItems);
+  }, [pendingVisualRequest, imageModalOpen, lastMenuItems, attemptOpenVisualPreview]);
 
   const handleQuickPrompt = (prompt: string) => {
     if (!prompt) {
@@ -184,8 +709,8 @@ export default function FoodCourtConcierge() {
       .flatMap(message =>
         message.parts
           ?.filter(part => isToolUIPart(part))
-          .map(part => ({
-            id: `${message.id ?? 'assistant'}-${getToolName(part)}`,
+          .map((part, index) => ({
+            id: `${message.id ?? 'assistant'}-${getToolName(part)}-${index}`,
             name: getToolName(part),
             output: (() => {
               const raw = (part as any).output ?? (part as any).result;
@@ -211,11 +736,255 @@ export default function FoodCourtConcierge() {
       return null;
     }
     const extraction = extractSpeechContent(match);
-    const text = extraction && extraction.source === 'text' ? extraction.content : '';
+    const text = extraction ? extraction.content : '';
     return text.length > 120 ? `${text.slice(0, 120)}…` : text;
   }, [lastUtteranceId, messages]);
 
   const isStreaming = status === 'streaming';
+  const totalCartItems = useMemo(
+    () => (cartSummary ? cartSummary.items.reduce((sum, item) => sum + item.quantity, 0) : 0),
+    [cartSummary],
+  );
+
+  const fetchCartFromApi = useCallback(async () => {
+    if (cartFetchInFlightRef.current) {
+      return;
+    }
+    cartFetchInFlightRef.current = true;
+    setCartLoading(true);
+    try {
+      const response = await fetch('/api/food/cart');
+      if (!response.ok) {
+        throw new Error(`Cart request failed with status ${response.status}`);
+      }
+      const data = await response.json();
+      if (data?.success && data.cart) {
+        setCartSummary(data.cart);
+      } else {
+        setCartSummary(null);
+      }
+    } catch (error) {
+      console.error('[concierge] fetchCart error', error);
+    } finally {
+      setCartLoading(false);
+      cartFetchInFlightRef.current = false;
+    }
+  }, []);
+
+  const fetchOrdersFromApi = useCallback(async () => {
+    if (ordersFetchInFlightRef.current) {
+      return;
+    }
+    ordersFetchInFlightRef.current = true;
+    setOrdersLoading(true);
+    try {
+      const response = await fetch('/api/food/orders');
+      if (!response.ok) {
+        throw new Error(`Orders request failed with status ${response.status}`);
+      }
+      const data = await response.json();
+      if (data?.success && Array.isArray(data.orders)) {
+        setOrders(data.orders);
+      } else {
+        setOrders([]);
+      }
+    } catch (error) {
+      console.error('[concierge] fetchOrders error', error);
+    } finally {
+      setOrdersLoading(false);
+      ordersFetchInFlightRef.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchCartFromApi();
+    void fetchOrdersFromApi();
+  }, [fetchCartFromApi, fetchOrdersFromApi]);
+
+  useEffect(() => {
+    messages.forEach(message => {
+      message.parts?.forEach(part => {
+        if (!isToolUIPart(part)) {
+          return;
+        }
+        const toolName = getToolName(part);
+        if (
+          toolName !== 'addItemToCart' &&
+          toolName !== 'viewCart' &&
+          toolName !== 'submitCartOrder' &&
+          toolName !== 'searchMenuItems' &&
+          toolName !== 'getRestaurantMenu' &&
+          toolName !== 'fetchMenuItemImage'
+        ) {
+          return;
+        }
+        const toolCallId = part.toolCallId ?? `${message.id ?? 'assistant'}-${toolName}`;
+        if (processedToolCallsRef.current.has(toolCallId)) {
+          return;
+        }
+        processedToolCallsRef.current.add(toolCallId);
+        const raw = (part as any).output ?? (part as any).result;
+        let parsed: any = null;
+        if (raw) {
+          try {
+            parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          } catch (error) {
+            parsed = null;
+          }
+        }
+
+        if (!parsed || typeof parsed !== 'object') {
+          return;
+        }
+
+        if (toolName === 'fetchMenuItemImage') {
+          if (parsed.success && parsed.imageUrl) {
+            const menuItem = parsed.menuItem ?? {};
+            const price = normalizeNumeric(menuItem.price);
+            const calories = normalizeNumeric(menuItem.calories);
+            const preview: MenuItemPreview = {
+              name: menuItem.name ?? null,
+              description: menuItem.description ?? null,
+              price,
+              tags: Array.isArray(menuItem.tags) ? menuItem.tags : [],
+              image: parsed.imageUrl,
+              calories,
+              sectionTitle: menuItem.sectionTitle ?? null,
+              restaurantName: parsed.restaurant?.name ?? null,
+            };
+            setLastMenuItems([preview]);
+            setImagePreview({
+              imageUrl: parsed.imageUrl,
+              name: preview.name,
+              description: preview.description,
+              price,
+              tags: preview.tags,
+              restaurantName: preview.restaurantName,
+              sectionTitle: preview.sectionTitle,
+              calories,
+            });
+            setImageModalOpen(true);
+            setPendingVisualRequest(null);
+          } else if (parsed.success === false) {
+            setImagePreview(null);
+          }
+          return;
+        }
+
+        if (toolName === 'searchMenuItems') {
+          const normalizedResults: MenuItemPreview[] = Array.isArray(parsed.results)
+            ? parsed.results.map((item: any) => ({
+                name: item.name ?? null,
+                description: item.description ?? null,
+                price: normalizeNumeric(item.price),
+                tags: Array.isArray(item.tags) ? item.tags : [],
+                image: item.image ?? null,
+                calories: normalizeNumeric(item.calories),
+                sectionTitle: item.sectionTitle ?? null,
+                restaurantName: item.restaurantName ?? parsed.restaurant?.name ?? null,
+              }))
+            : [];
+          if (normalizedResults.length > 0) {
+            setLastMenuItems(normalizedResults);
+            attemptOpenVisualPreview(normalizedResults, parsed.restaurant?.name ?? null);
+          }
+          return;
+        }
+
+        if (toolName === 'getRestaurantMenu') {
+          const sections = Array.isArray(parsed.sections) ? parsed.sections : [];
+          const normalizedItems: MenuItemPreview[] = [];
+          sections.forEach((section: any) => {
+            const sectionTitle = section?.title ?? null;
+            if (Array.isArray(section?.items)) {
+              section.items.forEach((item: any) => {
+                normalizedItems.push({
+                  name: item?.name ?? null,
+                  description: item?.description ?? null,
+                  price: normalizeNumeric(item?.price ?? item?.base_price),
+                  tags: Array.isArray(item?.tags) ? item.tags : [],
+                  image: item?.image ?? null,
+                  calories: normalizeNumeric(item?.calories),
+                  sectionTitle,
+                  restaurantName: parsed.restaurant?.name ?? null,
+                });
+              });
+            }
+          });
+          if (normalizedItems.length > 0) {
+            setLastMenuItems(normalizedItems);
+            attemptOpenVisualPreview(normalizedItems, parsed.restaurant?.name ?? null);
+          }
+        }
+
+        if (parsed.cart) {
+          setCartSummary(parsed.cart);
+        }
+
+        if (toolName === 'submitCartOrder' && parsed.success) {
+          void fetchOrdersFromApi();
+          void fetchCartFromApi();
+        } else if (toolName === 'addItemToCart' || toolName === 'viewCart') {
+          if (!parsed.cart) {
+            void fetchCartFromApi();
+          }
+        }
+      });
+    });
+  }, [messages, fetchCartFromApi, fetchOrdersFromApi, attemptOpenVisualPreview]);
+
+  const openCartModal = useCallback(() => {
+    void fetchCartFromApi();
+    void fetchOrdersFromApi();
+    setCartModalOpen(true);
+    setCartActionMessage(null);
+  }, [fetchCartFromApi, fetchOrdersFromApi]);
+
+  const closeCartModal = useCallback(() => {
+    setCartModalOpen(false);
+  }, []);
+
+  const closeImageModal = useCallback(() => {
+    setImageModalOpen(false);
+  }, []);
+
+  const handleClearCart = useCallback(async () => {
+    try {
+      const response = await fetch('/api/food/cart', { method: 'DELETE' });
+      if (!response.ok) {
+        throw new Error(`Failed to clear cart: ${response.status}`);
+      }
+      const data = await response.json();
+      if (data?.success) {
+        setCartActionMessage('Cart cleared.');
+        await fetchCartFromApi();
+      } else {
+        setCartActionMessage(data?.message ?? 'Unable to clear cart.');
+      }
+    } catch (error) {
+      console.error('[concierge] clear cart error', error);
+      setCartActionMessage('Unexpected error clearing cart.');
+    }
+  }, [fetchCartFromApi]);
+
+  const handleClearOrders = useCallback(async () => {
+    try {
+      const response = await fetch('/api/food/orders', { method: 'DELETE' });
+      if (!response.ok) {
+        throw new Error(`Failed to clear orders: ${response.status}`);
+      }
+      const data = await response.json();
+      if (data?.success) {
+        setCartActionMessage('Past orders cleared.');
+        await fetchOrdersFromApi();
+      } else {
+        setCartActionMessage(data?.message ?? 'Unable to clear orders.');
+      }
+    } catch (error) {
+      console.error('[concierge] clear orders error', error);
+      setCartActionMessage('Unexpected error clearing orders.');
+    }
+  }, [fetchOrdersFromApi]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -232,6 +1001,21 @@ export default function FoodCourtConcierge() {
             </nav>
           </div>
           <div className="flex items-center gap-4 text-xs">
+            <button
+              type="button"
+              onClick={openCartModal}
+              className="flex items-center gap-2 rounded-full border border-slate-300 px-3 py-1 uppercase tracking-[0.3em] text-slate-600 transition hover:border-emerald-400 hover:text-emerald-600"
+            >
+              <span role="img" aria-label="cart">
+                🛒
+              </span>
+              Cart
+              {totalCartItems > 0 ? (
+                <span className="ml-1 inline-flex h-4 min-w-[1.25rem] items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-semibold text-white">
+                  {totalCartItems}
+                </span>
+              ) : null}
+            </button>
             <button
               type="button"
               onClick={toggleAssistantMute}
@@ -292,7 +1076,11 @@ export default function FoodCourtConcierge() {
             </div>
           </div>
 
-          <div className="h-[460px] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-6" id="food-court-chat">
+          <div
+            ref={chatContainerRef}
+            className="h-[460px] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-6"
+            id="food-court-chat"
+          >
             {messages.length === 0 && !hasSentInitialMessage ? (
               <div className="flex h-full flex-col items-center justify-center text-center text-slate-400">
                 <p className="text-lg font-medium text-slate-600">Say “Hey Food Court” to get started.</p>
@@ -302,19 +1090,23 @@ export default function FoodCourtConcierge() {
               <div className="space-y-6">
                 {messages.map(message => {
                   const textParts = extractTextParts(message);
+                  const displayParts = textParts
+                    .map(formatTextPartForDisplay)
+                    .map(part => part.trim())
+                    .filter(Boolean);
                   return (
                     <div key={message.id ?? Math.random()} className="space-y-2">
                       <div className={`text-xs uppercase tracking-[0.35em] ${message.role === 'user' ? 'text-emerald-600' : 'text-slate-500'}`}>
                         {message.role === 'user' ? 'You' : 'Food Court Concierge'}
                       </div>
-                      {textParts.map((text, index) => (
+                      {displayParts.map((text, index) => (
                         <p key={index} className="text-sm leading-relaxed text-slate-700">
                           {text}
                         </p>
                       ))}
                       {message.parts
                         ?.filter(part => isToolUIPart(part))
-                        .map(part => {
+                        .map((part, partIndex) => {
                           const toolName = getToolName(part);
                           const raw = (part as any).output ?? (part as any).result;
                           let parsed: any = null;
@@ -325,21 +1117,26 @@ export default function FoodCourtConcierge() {
                               parsed = raw;
                             }
                           }
+                          const rendered = renderToolOutput(toolName, parsed);
                           return (
-                            <div key={`${message.id ?? 'assistant'}-${toolName}`} className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
+                            <div
+                              key={`${message.id ?? 'assistant'}-${toolName}-${partIndex}`}
+                              className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600"
+                            >
                               <div className="mb-1 font-semibold uppercase tracking-[0.3em] text-slate-500">{toolName}</div>
-                              <pre className="whitespace-pre-wrap break-all text-[11px] text-slate-700">
-                                {typeof parsed === 'string'
-                                  ? parsed
-                                  : JSON.stringify(parsed, null, 2)}
-                              </pre>
+                              {rendered ?? (
+                                <pre className="whitespace-pre-wrap break-all text-[11px] text-slate-700">
+                                  {typeof parsed === 'string'
+                                    ? parsed
+                                    : JSON.stringify(parsed, null, 2)}
+                                </pre>
+                              )}
                             </div>
                           );
                         })}
                     </div>
                   );
                 })}
-                <div ref={chatEndRef} />
               </div>
             )}
           </div>
@@ -378,8 +1175,8 @@ export default function FoodCourtConcierge() {
           <section className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
             <div className="text-xs uppercase tracking-[0.35em] text-slate-500">Latest tool activity</div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-              {activeToolSummaries.slice(-4).map(tool => (
-                <div key={tool.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              {activeToolSummaries.slice(-4).map((tool, index) => (
+                <div key={`${tool.id}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="text-xs uppercase tracking-[0.3em] text-emerald-600">{tool.name}</div>
                   <pre className="mt-2 whitespace-pre-wrap break-all text-[11px] text-slate-700">
                     {typeof tool.output === 'string'
@@ -419,6 +1216,216 @@ export default function FoodCourtConcierge() {
           </section>
         )}
       </main>
+
+      {cartModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            aria-hidden="true"
+            onClick={closeCartModal}
+          />
+          <div className="relative z-10 w-full max-w-xl rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
+              <div>
+                <div className="text-xs uppercase tracking-[0.35em] text-slate-500">Cart & Orders</div>
+                <div className="text-lg font-semibold text-slate-900">
+                  {cartSummary?.restaurantName ?? 'Current selections'}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeCartModal}
+                className="rounded-full border border-slate-200 px-3 py-1 text-xs uppercase tracking-[0.3em] text-slate-500 transition hover:border-emerald-400 hover:text-emerald-600"
+              >
+                Close
+              </button>
+            </div>
+            <div className="max-h-[70vh] space-y-6 overflow-y-auto px-6 py-5 text-sm text-slate-700">
+              <div className="flex items-center justify-between">
+                <div className="text-xs uppercase tracking-[0.25em] text-slate-500">Active Cart</div>
+                <button
+                  type="button"
+                  onClick={handleClearCart}
+                  className="rounded-full border border-slate-200 px-3 py-1 text-[11px] uppercase tracking-[0.25em] text-slate-500 transition hover:border-emerald-400 hover:text-emerald-600"
+                  disabled={cartLoading}
+                >
+                  Clear Cart
+                </button>
+              </div>
+              {cartLoading ? (
+                <div className="text-xs text-slate-500">Loading cart…</div>
+              ) : cartSummary && cartSummary.items.length > 0 ? (
+                <div className="space-y-3">
+                  <ul className="space-y-3 text-xs">
+                    {cartSummary.items.map(item => (
+                      <li key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex items-center justify-between text-sm text-slate-800">
+                          <span>
+                            {item.quantity} × {item.name}
+                          </span>
+                          <span className="font-semibold text-slate-900">{formatMoney(item.totalPrice)}</span>
+                        </div>
+                        {item.options && item.options.length > 0 ? (
+                          <ul className="mt-1 ml-4 list-disc space-y-1 text-[11px] text-slate-500">
+                            {item.options.map(option => (
+                              <li key={option.id ?? `${item.id}-${option.label}`}>
+                                {option.label}
+                                {typeof option.priceAdjustment === 'number' && option.priceAdjustment !== 0
+                                  ? ` (${formatMoney(option.priceAdjustment)})`
+                                  : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                        {item.instructions ? (
+                          <div className="mt-1 text-[11px] italic text-slate-500">“{item.instructions}”</div>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="text-xs uppercase tracking-[0.25em] text-slate-500">
+                    Subtotal {formatMoney(cartSummary.subtotal)}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-200 p-4 text-xs text-slate-500">
+                  Your cart is empty.
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
+                <div className="text-xs uppercase tracking-[0.25em] text-slate-500">Past Orders</div>
+                <button
+                  type="button"
+                  onClick={handleClearOrders}
+                  className="rounded-full border border-slate-200 px-3 py-1 text-[11px] uppercase tracking-[0.25em] text-slate-500 transition hover:border-emerald-400 hover:text-emerald-600"
+                  disabled={ordersLoading}
+                >
+                  Clear Orders
+                </button>
+              </div>
+              {ordersLoading ? (
+                <div className="text-xs text-slate-500">Loading orders…</div>
+              ) : orders.length > 0 ? (
+                <div className="space-y-3 text-xs">
+                  {orders.map(order => (
+                    <div key={order.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex items-center justify-between text-sm text-slate-800">
+                        <span>{order.restaurantName}</span>
+                        <span className="font-semibold text-slate-900">
+                          {formatMoney(typeof order.total === 'number' ? order.total : Number(order.total ?? 0))}
+                        </span>
+                      </div>
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                        {order.createdAt ? new Date(order.createdAt).toLocaleString() : 'Recent order'}
+                      </div>
+                      {order.items && order.items.length > 0 ? (
+                        <ul className="mt-2 space-y-1 text-[11px] text-slate-600">
+                          {order.items.map(item => (
+                            <li key={item.id}>
+                              {item.quantity} × {item.name}
+                              {typeof item.totalPrice === 'number'
+                                ? ` (${formatMoney(item.totalPrice)})`
+                                : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-200 p-4 text-xs text-slate-500">
+                  No past orders yet. As you place orders with the concierge, they’ll appear here.
+                </div>
+              )}
+
+              {cartActionMessage ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] uppercase tracking-[0.25em] text-emerald-600">
+                  {cartActionMessage}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {imageModalOpen && imagePreview ? (
+        <div className="fixed inset-0 z-[55] flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm"
+            aria-hidden="true"
+            onClick={closeImageModal}
+          />
+          <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <button
+              type="button"
+              onClick={closeImageModal}
+              className="absolute right-4 top-4 z-10 rounded-full border border-white/60 bg-white/80 px-3 py-1 text-xs uppercase tracking-[0.3em] text-slate-600 shadow-sm transition hover:border-emerald-300 hover:text-emerald-600"
+            >
+              Close
+            </button>
+            <div className="grid gap-0 md:grid-cols-[3fr,2fr]">
+              <div className="relative bg-slate-900">
+                <img
+                  src={imagePreview.imageUrl}
+                  alt={imagePreview.name ?? 'Menu item'}
+                  className="h-[70vh] w-full object-cover"
+                />
+              </div>
+              <div className="flex flex-col justify-between gap-6 p-8">
+                <div className="space-y-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-600">
+                    {imagePreview.restaurantName ?? 'Featured dish'}
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-2xl font-semibold text-slate-900">
+                      {imagePreview.name ?? 'Menu item'}
+                    </div>
+                    {imagePreview.sectionTitle ? (
+                      <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
+                        {imagePreview.sectionTitle}
+                      </div>
+                    ) : null}
+                  </div>
+                  {typeof imagePreview.price === 'number' ? (
+                    <div className="text-xl font-semibold text-slate-900">{formatMoney(imagePreview.price)}</div>
+                  ) : null}
+                  {imagePreview.tags && imagePreview.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-2 text-[11px] text-emerald-700">
+                      {imagePreview.tags.map(tag => (
+                        <span key={tag} className="rounded-full bg-emerald-100 px-2 py-0.5 font-medium">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                  {typeof imagePreview.calories === 'number' ? (
+                    <div className="text-[11px] uppercase tracking-[0.25em] text-slate-400">
+                      {imagePreview.calories} calories
+                    </div>
+                  ) : null}
+                  {imagePreview.description ? (
+                    <p className="text-sm leading-relaxed text-slate-600">{imagePreview.description}</p>
+                  ) : null}
+                </div>
+                <div className="space-y-3 text-sm text-slate-600">
+                  <p>
+                    Ask for modifiers, specify quantities, or tell the concierge to add this to your cart when you’re
+                    ready.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={closeImageModal}
+                    className="w-full rounded-full border border-emerald-200 px-5 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-600 transition hover:border-emerald-400 hover:bg-emerald-50"
+                  >
+                    Back to conversation
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -32,27 +32,51 @@ export async function fetchRestaurantBySlug(slug: string): Promise<SampleRestaur
     .eq('slug', slug)
     .maybeSingle();
 
-  if (error || !data) {
+  if (error || !data || typeof (data as { id?: string }).id !== 'string') {
     return FALLBACK_RESTAURANTS.find(restaurant => restaurant.id === slug) ?? null;
   }
 
+  if (typeof data !== 'object' || data === null || !('name' in data)) {
+    return FALLBACK_RESTAURANTS.find(restaurant => restaurant.id === slug) ?? null;
+  }
+
+  const record = data as {
+    id?: string | null;
+    slug?: string | null;
+    name: string;
+    cuisine_group?: string | null;
+    cuisine?: string | null;
+    rating?: number | null;
+    eta_minutes?: number | null;
+    closes_at?: string | null;
+    standout_dish?: string | null;
+    delivery_fee?: number | null;
+    promo?: string | null;
+    hero_image?: string | null;
+    address?: string | null;
+    phone?: string | null;
+    highlights?: string[] | null;
+    dietary_tags?: string[] | null;
+    price_tier?: string | null;
+  };
+
   return {
-    id: data.slug ?? data.id,
-    name: data.name,
-    cuisine_group: data.cuisine_group,
-    cuisine: data.cuisine,
-    rating: data.rating,
-    eta_minutes: data.eta_minutes,
-    closes_at: data.closes_at,
-    standout_dish: data.standout_dish,
-    delivery_fee: data.delivery_fee,
-    promo: data.promo,
-    dietary_tags: data.dietary_tags ?? [],
-    price_tier: data.price_tier,
-    hero_image: data.hero_image,
-    address: data.address,
-    phone: data.phone,
-    highlights: data.highlights,
+    id: record.slug ?? record.id ?? slug,
+    name: record.name,
+    cuisine_group: record.cuisine_group ?? 'general',
+    cuisine: record.cuisine ?? 'restaurant',
+    rating: record.rating,
+    eta_minutes: record.eta_minutes,
+    closes_at: record.closes_at,
+    standout_dish: record.standout_dish,
+    delivery_fee: record.delivery_fee,
+    promo: record.promo,
+    dietary_tags: record.dietary_tags ?? [],
+    price_tier: record.price_tier === 'low' || record.price_tier === 'medium' || record.price_tier === 'high' ? record.price_tier : undefined,
+    hero_image: record.hero_image,
+    address: record.address,
+    phone: record.phone,
+    highlights: record.highlights,
   };
 }
 

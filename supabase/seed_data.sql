@@ -178,7 +178,13 @@ values (
 )
 on conflict (id) do update set
   household_name = excluded.household_name,
-  default_layout = excluded.default_layout;
+  default_layout = excluded.default_layout,
+  default_location = jsonb_build_object(
+    'city', coalesce(fc_profiles.default_location->>'city', 'Orlando'),
+    'state', coalesce(fc_profiles.default_location->>'state', 'FL'),
+    'lat', coalesce((fc_profiles.default_location->>'lat')::numeric, 28.538336),
+    'lng', coalesce((fc_profiles.default_location->>'lng')::numeric, -81.379234)
+  );
 
 insert into fc_preferences (
   id,

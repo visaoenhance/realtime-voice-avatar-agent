@@ -165,6 +165,7 @@ create table if not exists fc_profiles (
   household_name text not null,
   default_layout jsonb,
   current_layout jsonb,
+  default_location jsonb,
   updated_at timestamptz default timezone('utc', now())
 );
 

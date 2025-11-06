@@ -84,7 +84,9 @@ export default async function ItemDetailPage({ params, searchParams }: ItemDetai
   }
 
   const menu: MenuCategory[] = SAMPLE_MENU_BY_RESTAURANT[restaurant.id] ?? [];
-  const match = findMenuItem(menu, itemSlug, resolvedSearchParams.category);
+  const rawCategory = (resolvedSearchParams as Record<string, string | string[] | undefined>).category;
+  const categoryHint = Array.isArray(rawCategory) ? rawCategory[0] : rawCategory;
+  const match = findMenuItem(menu, itemSlug, categoryHint);
   if (!match) {
     notFound();
   }
