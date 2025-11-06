@@ -129,11 +129,11 @@ export default function FoodCourtConcierge() {
       <header className="border-b border-white/5 bg-black/40 backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
           <div className="flex items-center gap-10">
-            <Link href="/food" className="font-display text-3xl tracking-[0.35em] text-[#4fd1c5]">
+            <Link href="/" className="font-display text-3xl tracking-[0.35em] text-[#4fd1c5]">
               Food Court
             </Link>
             <nav className="hidden gap-6 text-xs font-semibold uppercase tracking-[0.3em] text-white/60 md:flex">
-              <Link href="/food" className="transition hover:text-white">Home</Link>
+              <Link href="/" className="transition hover:text-white">Home</Link>
               <span className="text-white">Concierge</span>
               <Link href="/voice" className="transition hover:text-white/80">MovieNite</Link>
             </nav>

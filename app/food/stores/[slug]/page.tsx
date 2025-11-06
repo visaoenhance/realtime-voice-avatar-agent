@@ -88,7 +88,7 @@ export default async function StoreDetailPage({ params }: { params: { slug: stri
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <header className="border-b border-white/10 bg-slate-950/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-6">
-          <Link href="/food" className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400 transition hover:text-white">
+          <Link href="/" className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400 transition hover:text-white">
             ← Back to Food Court
           </Link>
           <div className="flex flex-wrap items-start justify-between gap-4">

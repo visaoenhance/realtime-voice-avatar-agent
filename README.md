@@ -14,7 +14,7 @@ This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, vo
 - Automatic detection of spoken language (Spanish, etc.) with matching concierge replies
 - Classic “tile” homepage for contrast, plus a dedicated voice concierge route (`/voice`)
 - Parallel Food Court experience featuring:
-  - Marketplace home at `/food`
+  - Marketplace home at `/`
   - Store detail and menu flows at `/food/stores/[slug]`
   - Item detail customizer at `/food/stores/[slug]/items/[itemSlug]`
   - Voice concierge relocated to `/food/concierge`
@@ -48,7 +48,7 @@ This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, vo
    Edit `data/muxTrailers.ts` and update the `playbackId` / `poster` pairs for each title with the playback IDs from your Mux dashboard.
 
 5. **Explore both flows**
-   - Visit [http://localhost:3000](http://localhost:3000) to see the traditional tile-based home screen with a call-to-action for the concierge.
-   - Jump to [http://localhost:3000/voice](http://localhost:3000/voice) to launch the original MovieNite voice-driven experience.
-   - Test the Food Court concierge at [http://localhost:3000/food](http://localhost:3000/food) for restaurant discovery and ordering assistance.
+   - Visit [http://localhost:3000](http://localhost:3000) to browse the Food Court marketplace home.
+   - Launch the Food Court concierge at [http://localhost:3000/food/concierge](http://localhost:3000/food/concierge).
+   - Jump to [http://localhost:3000/voice](http://localhost:3000/voice) to run the original MovieNite voice-driven experience.
 6. When ready to commit, say "Let's watch this"; the assistant triggers `startPlayback`, again asking for approval before confirming the stream is live and speaking the confirmation aloud (unless muted).

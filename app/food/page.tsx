@@ -197,7 +197,7 @@ export default async function FoodCourtHome() {
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-6 md:flex-row md:items-center md:justify-between">
           <div>
             <Link
-              href="/food"
+              href="/"
               className="font-display text-3xl tracking-[0.3em] text-emerald-300 transition hover:text-emerald-200"
             >
               Food Court
