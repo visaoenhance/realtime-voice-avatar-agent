@@ -1,23 +1,23 @@
-# MovieNite (Netflix-Inspired) Human-in-the-Loop Voice Concierge
+# Food Court Voice Concierge (with MovieNite Legacy Route)
 
-This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, voice-first agent—rebranded as **MovieNite**—that helps households pick what to watch. The assistant understands preferred genres, surfaces nostalgic vs. new options, and always requests explicit approval before playing previews or starting playback.
+This repository now centers on a human-in-the-loop **Food Court** concierge: a voice-forward agent that guides households to open restaurants, surfaces fallback suggestions, and gathers approvals before taking action. The original **MovieNite** Netflix experiment still ships as a legacy `/voice` route for comparison, but Food Court is the primary experience.
 
 ## Highlights
 
-- Voice-centric UI with OpenAI Realtime capture (with typed fallback for unsupported browsers)
-- Netflix-style domain prompt engineering with OpenAI GPT models
-- Tooling for household context, recommendations, preview, playback, and feedback
-- Human-in-the-loop approvals for preview and playback actions
-- Rich media sidebar that reflects current preview and playback state
-- Netflix-inspired dark theming using open fonts and a custom palette
-- Spoken concierge replies powered by OpenAI TTS with a mute toggle
-- Automatic detection of spoken language (Spanish, etc.) with matching concierge replies
-- Classic “tile” homepage for contrast, plus a dedicated voice concierge route (`/voice`)
-- Parallel Food Court experience featuring:
-  - Marketplace home at `/`
-  - Store detail and menu flows at `/food/stores/[slug]`
-  - Item detail customizer at `/food/stores/[slug]/items/[itemSlug]`
-  - Voice concierge relocated to `/food/concierge`
+- Conversational restaurant discovery with OpenAI GPT models and AI SDK tool orchestration
+- Voice-first interaction layer with typed fallback, Supabase-backed context, and Sample data for offline demos
+- Clarifies delivery area before searching, mirrors the household’s language, and speaks concise confirmations
+- Human-in-the-loop approvals remain for critical actions (preferences, order intent, playback)
+- Fallback catalogue (including Colombian, Caribbean, and healthy options) keeps demos working without Supabase
+- Legacy MovieNite flow preserved at `/voice` to showcase the earlier Netflix prompt stack
+
+## Project Structure
+
+- `/` – Food Court marketplace landing page
+- `/food/concierge` – Food Court voice + chat concierge (current focus)
+- `/food/stores/[slug]` – Store detail with menu browsing and HITL item cards
+- `/food/stores/[slug]/items/[itemSlug]` – Item customization flow
+- `/voice` – MovieNite legacy voice concierge for streaming recommendations
 
 ## Setup
 
@@ -30,25 +30,53 @@ This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, vo
    ```bash
    cp env.local.example .env.local
    ```
-   Edit `.env.local` and add your OpenAI key. Add Supabase environment variables if you want the data-driven personalization flows (MovieNite + Food Court):
+   Required keys:
    ```
    OPENAI_API_KEY=sk-...
-   NEXT_PUBLIC_SUPABASE_URL=https://...supabase.co
+   NEXT_PUBLIC_SUPABASE_URL=https://...supabase.co        # optional for live data
    NEXT_PUBLIC_SUPABASE_ANON_KEY=...
    SUPABASE_URL=https://...supabase.co
    SUPABASE_SERVICE_ROLE_KEY=...
    DEMO_PROFILE_ID=00000000-0000-0000-0000-0000000000fc
    ```
 
-3. **Seed Supabase (optional but recommended)**
-   - Create a new Supabase project.
-   - Open the SQL editor and run the script in `supabase/schema.sql` to create the `mvnte_` tables and seed demo data.
+3. **Seed Supabase (for live restaurant data)**
+   - Create a Supabase project.
+   - Run `supabase/schema.sql` to create the `fc_*` tables (preferences, restaurants, orders, layout, etc.).
+   - Optionally run `supabase/seed_data.sql` for richer demo records.
 
-4. **Point preview clips at your Mux assets**
-   Edit `data/muxTrailers.ts` and update the `playbackId` / `poster` pairs for each title with the playback IDs from your Mux dashboard.
+   Without Supabase, the concierge falls back to the curated dataset in `data/foodCourtSamples.ts`.
 
-5. **Explore both flows**
-   - Visit [http://localhost:3000](http://localhost:3000) to browse the Food Court marketplace home.
-   - Launch the Food Court concierge at [http://localhost:3000/food/concierge](http://localhost:3000/food/concierge).
-   - Jump to [http://localhost:3000/voice](http://localhost:3000/voice) to run the original MovieNite voice-driven experience.
-6. When ready to commit, say "Let's watch this"; the assistant triggers `startPlayback`, again asking for approval before confirming the stream is live and speaking the confirmation aloud (unless muted).
+4. **Voice & speech configuration**
+   - `/api/openai/transcribe` handles recorded audio clips from the browser.
+   - `/api/openai/speak` uses OpenAI TTS; the concierge mirrors the user’s language when replying aloud.
+   - `hooks/useAssistantSpeech.ts` contains speech queueing logic and mute toggles.
+
+5. **Legacy MovieNite assets (optional)**
+   - Update `data/muxTrailers.ts` with your Mux playback IDs if you plan to demo the `/voice` route.
+
+## Usage
+
+- `npm run dev` – Start the Next.js dev server.
+- Visit [http://localhost:3000/food/concierge](http://localhost:3000/food/concierge) to try the Food Court agent. It will:
+  - Call `getUserContext` on the first turn to ground preferences and recent orders.
+  - Ask for the current city/delivery area before searching.
+  - Use `searchRestaurants` + `recommendShortlist` to present conversational summaries (“three spots open: Sabor Colombiano Kitchen stays open until 9:30…”).
+  - Log order intent and feedback only after explicit acknowledgements.
+- Visit [http://localhost:3000/voice](http://localhost:3000/voice) to compare the MovieNite legacy experience.
+
+## Testing & Observability
+
+- `scripts/test-chat.js` and `scripts/smoke-chat.js` simulate chat flows.
+- The concierge logs tool executions in the UI, helping verify HITL approvals and speech outputs.
+- Voice status indicators help debug microphone permissions and transcription state.
+
+## Contributing Notes
+
+- Keep Supabase schema and sample data aligned when adding new restaurant attributes.
+- Update the Food Court system prompt (`app/api/food-chat/route.ts`) when introducing new policies or tool sequences.
+- Maintain fallback data so the demo remains useful without Supabase credentials.
+
+## License
+
+MIT – see [LICENSE](LICENSE) for details.
