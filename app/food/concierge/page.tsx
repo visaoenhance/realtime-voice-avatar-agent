@@ -6,6 +6,7 @@ import { DefaultChatTransport, getToolName, isToolUIPart } from 'ai';
 import { useChat } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
 import { useAssistantSpeech } from '@/hooks/useAssistantSpeech';
+import { useAudioTranscription } from '@/hooks/useAudioTranscription';
 import type { FoodCourtUIMessage } from '../../api/food-chat/types';
 
 const QUICK_PROMPTS = [
@@ -31,6 +32,7 @@ export default function FoodCourtConcierge() {
   });
 
   const [draft, setDraft] = useState('');
+  const [transcript, setTranscript] = useState('');
 
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const [hasSentInitialMessage, setHasSentInitialMessage] = useState(false);
@@ -44,6 +46,30 @@ export default function FoodCourtConcierge() {
   } = useAssistantSpeech({ defaultMuted: false, voice: 'alloy' });
 
   const lastAssistantMessageId = useRef<string | null>(null);
+
+  const {
+    status: voiceStatus,
+    error: voiceError,
+    isSupported: voiceSupported,
+    startRecording,
+    stopRecording,
+    isRecording,
+  } = useAudioTranscription({
+    onFinalTranscript: async (text, language) => {
+      setTranscript('');
+      if (!text.trim()) {
+        return;
+      }
+      await sendMessage({
+        text,
+        metadata: language ? { language } : undefined,
+      });
+      setHasSentInitialMessage(true);
+    },
+    onPartialTranscript: partial => {
+      setTranscript(partial);
+    },
+  });
 
   useEffect(() => {
     const lastMessage = [...messages].reverse().find(message => message.role === 'assistant');
@@ -145,6 +171,25 @@ export default function FoodCourtConcierge() {
               className="rounded-full border border-slate-300 px-3 py-1 uppercase tracking-[0.3em] text-slate-600 transition hover:border-emerald-400 hover:text-emerald-600"
             >
               {isAssistantMuted ? 'Unmute Agent' : 'Mute Agent'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (isRecording) {
+                  stopRecording();
+                } else {
+                  void startRecording();
+                }
+              }}
+              className={`flex items-center gap-2 rounded-full border px-3 py-1 uppercase tracking-[0.3em] transition ${
+                isRecording
+                  ? 'border-red-300 bg-red-50 text-red-600 hover:bg-red-100'
+                  : 'border-slate-300 text-slate-600 hover:border-emerald-400 hover:text-emerald-600'
+              } ${voiceSupported ? '' : 'opacity-50 cursor-not-allowed'}`}
+              disabled={!voiceSupported}
+            >
+              <span className="inline-block h-2 w-2 rounded-full bg-current" />
+              {isRecording ? 'Stop' : 'Talk'}
             </button>
             {latestSpeechLabel ? (
               <div className="hidden max-w-xs shrink text-right text-slate-500 md:block">
@@ -279,6 +324,33 @@ export default function FoodCourtConcierge() {
             </div>
           </section>
         ) : null}
+
+        {(voiceStatus === 'recording' || voiceStatus === 'processing' || transcript || voiceError) && (
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+            <div className="text-xs uppercase tracking-[0.35em] text-slate-500">Voice capture</div>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <span
+                className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] ${
+                  voiceStatus === 'recording'
+                    ? 'bg-red-50 text-red-600'
+                    : voiceStatus === 'processing'
+                    ? 'bg-emerald-50 text-emerald-600'
+                    : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {voiceStatus === 'recording' && 'Listening…'}
+                {voiceStatus === 'processing' && 'Transcribing…'}
+                {voiceStatus === 'idle' && transcript && 'Transcribed'}
+              </span>
+              {voiceError ? <span className="text-xs text-red-500">{voiceError}</span> : null}
+            </div>
+            {transcript ? (
+              <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                “{transcript}”
+              </div>
+            ) : null}
+          </section>
+        )}
       </main>
     </div>
   );
