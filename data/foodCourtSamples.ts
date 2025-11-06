@@ -29,6 +29,24 @@ export type SampleFoodPreferences = {
 
 export const FALLBACK_RESTAURANTS: SampleRestaurant[] = [
   {
+    id: 'sabor-colombiano-kitchen',
+    name: 'Sabor Colombiano Kitchen',
+    cuisine_group: 'latin',
+    cuisine: 'colombian',
+    rating: 4.6,
+    eta_minutes: 34,
+    closes_at: new Date(Date.now() + 150 * 60 * 1000).toISOString(),
+    standout_dish: 'Grilled Salmon with Aji Verde',
+    delivery_fee: 2.25,
+    promo: 'Free arepa bites over $35',
+    dietary_tags: ['high-protein', 'vegetarian-friendly'],
+    price_tier: 'medium',
+    hero_image: 'https://images.unsplash.com/photo-1515003197210-e0cd71810b5f?auto=format&fit=crop&w=1600&q=80',
+    address: '299 Avenida de la Salsa, Orlando, FL',
+    phone: '(407) 555-0199',
+    highlights: ['House-made aji sauces', 'Grilled protein platters', 'Family-style bandeja paisa'],
+  },
+  {
     id: 'island-breeze-caribbean',
     name: 'Island Breeze Caribbean',
     cuisine_group: 'latin',

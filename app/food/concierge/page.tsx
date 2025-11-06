@@ -26,6 +26,53 @@ function extractTextParts(message: UIMessage): string[] {
     .filter(Boolean);
 }
 
+type SpeechExtraction = {
+  content: string;
+  source: 'text' | 'summary';
+};
+
+function extractSpeechContent(message: UIMessage): SpeechExtraction | null {
+  const textParts = extractTextParts(message);
+  if (textParts.length > 0) {
+    return {
+      content: textParts.join(' '),
+      source: 'text',
+    };
+  }
+
+  if (!message.parts) {
+    return null;
+  }
+
+  for (const part of message.parts) {
+    if (!isToolUIPart(part)) {
+      continue;
+    }
+    const raw = (part as any).output ?? (part as any).result;
+    if (!raw) {
+      continue;
+    }
+
+    let parsed: any = raw;
+    if (typeof raw === 'string') {
+      try {
+        parsed = JSON.parse(raw);
+      } catch (error) {
+        parsed = null;
+      }
+    }
+
+    if (parsed && typeof parsed === 'object' && typeof parsed.speechSummary === 'string') {
+      return {
+        content: parsed.speechSummary,
+        source: 'summary',
+      };
+    }
+  }
+
+  return null;
+}
+
 export default function FoodCourtConcierge() {
   const { messages, sendMessage, status } = useChat<FoodCourtUIMessage>({
     transport: new DefaultChatTransport({ api: '/api/food-chat' }),
@@ -46,6 +93,7 @@ export default function FoodCourtConcierge() {
   } = useAssistantSpeech({ defaultMuted: false, voice: 'alloy' });
 
   const lastAssistantMessageId = useRef<string | null>(null);
+  const lastSpokenSignatureRef = useRef<string | null>(null);
 
   const {
     status: voiceStatus,
@@ -72,20 +120,38 @@ export default function FoodCourtConcierge() {
   });
 
   useEffect(() => {
+    if (status === 'streaming') {
+      return;
+    }
+
     const lastMessage = [...messages].reverse().find(message => message.role === 'assistant');
     if (!lastMessage?.parts) {
       return;
     }
-    if (lastMessage.id && lastMessage.id === lastAssistantMessageId.current) {
+
+    const speech = extractSpeechContent(lastMessage);
+    if (!speech || speech.source === 'summary') {
       return;
     }
 
-    const textParts = extractTextParts(lastMessage);
-    if (textParts.length > 0) {
-      speakAssistant(lastMessage.id ?? `assistant-${messages.length}`, textParts.join(' '));
-      lastAssistantMessageId.current = lastMessage.id ?? `assistant-${messages.length}`;
+    const messageId = lastMessage.id ?? `assistant-${messages.length}`;
+    const signature = `${messageId}:${speech.content}`;
+
+    if (signature === lastSpokenSignatureRef.current) {
+      return;
     }
-  }, [messages, speakAssistant]);
+
+    speakAssistant(messageId, speech.content);
+    lastAssistantMessageId.current = messageId;
+    lastSpokenSignatureRef.current = signature;
+  }, [messages, speakAssistant, status]);
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      lastAssistantMessageId.current = null;
+      lastSpokenSignatureRef.current = null;
+    }
+  }, [messages.length]);
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -144,7 +210,8 @@ export default function FoodCourtConcierge() {
     if (!match) {
       return null;
     }
-    const text = extractTextParts(match).join(' ');
+    const extraction = extractSpeechContent(match);
+    const text = extraction && extraction.source === 'text' ? extraction.content : '';
     return text.length > 120 ? `${text.slice(0, 120)}…` : text;
   }, [lastUtteranceId, messages]);
 
