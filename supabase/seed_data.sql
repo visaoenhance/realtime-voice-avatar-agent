@@ -136,3 +136,268 @@ update mvnte_parental_controls
 set max_rating = 'R', updated_at = timezone('utc', now())
 where profile_id = '00000000-0000-0000-0000-000000000001';
 
+-- Food Court demo seed data ---------------------------------------------
+
+insert into fc_profiles (id, household_name, default_layout, current_layout)
+values (
+  '00000000-0000-0000-0000-0000000000fc',
+  'Rivera Household',
+  '{
+    "hero": {
+      "title": "Island Breeze Caribbean",
+      "subtitle": "Dinner in under 40 minutes",
+      "description": "Need something bold and still open? Ask the concierge to line up Caribbean spots, healthy bowls, or grab-and-go favorites tonight.",
+      "cta": "Ask Food Court Concierge",
+      "backdrop": "https://images.unsplash.com/photo-1604908176970-ef3ee68c1801?auto=format&fit=crop&w=1600&q=80"
+    },
+    "rows": [
+      {
+        "title": "Closing Soon Caribbean",
+        "tiles": [
+          { "title": "Island Breeze Caribbean", "tag": "Closes in 45 min", "image": "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=1200&q=80" },
+          { "title": "Sabor Latino Cantina", "tag": "Free Chips Tonight", "image": "https://images.unsplash.com/photo-1606755962773-0e7d4be90a77?auto=format&fit=crop&w=1200&q=80" }
+        ]
+      },
+      {
+        "title": "Healthy Staples",
+        "tiles": [
+          { "title": "Green Garden Bowls", "tag": "ETA 24 min", "image": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=1200&q=80" },
+          { "title": "Harvest & Hearth", "image": "https://images.unsplash.com/photo-1528712306091-ed0763094c98?auto=format&fit=crop&w=1200&q=80" }
+        ]
+      },
+      {
+        "title": "Comfort Favorites",
+        "tiles": [
+          { "title": "Noodle Express", "tag": "2 for $20", "image": "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=1200&q=80" },
+          { "title": "Brick Oven Slice", "image": "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=1200&q=80" }
+        ]
+      }
+    ]
+  }'::jsonb,
+  null
+)
+on conflict (id) do update set
+  household_name = excluded.household_name,
+  default_layout = excluded.default_layout;
+
+insert into fc_preferences (
+  id,
+  profile_id,
+  favorite_cuisines,
+  disliked_cuisines,
+  dietary_tags,
+  spice_level,
+  budget_range,
+  notes
+)
+values (
+  '00000000-0000-0000-0000-0000000001fc',
+  '00000000-0000-0000-0000-0000000000fc',
+  '{"caribbean","thai","indian"}',
+  '{"fried"}',
+  '{"healthy","high-protein"}',
+  'medium',
+  'standard',
+  'Prefers options that arrive under 40 minutes.'
+)
+on conflict (id) do update set
+  favorite_cuisines = excluded.favorite_cuisines,
+  disliked_cuisines = excluded.disliked_cuisines,
+  dietary_tags = excluded.dietary_tags,
+  spice_level = excluded.spice_level,
+  budget_range = excluded.budget_range,
+  notes = excluded.notes,
+  updated_at = timezone('utc', now());
+
+with inserted_restaurants as (
+  insert into fc_restaurants (
+    slug,
+    name,
+    cuisine_group,
+    cuisine,
+    dietary_tags,
+    price_tier,
+    rating,
+    eta_minutes,
+    closes_at,
+    delivery_fee,
+    standout_dish,
+    promo,
+    hero_image,
+    address,
+    phone,
+    highlights
+  )
+  values
+    (
+      'island-breeze-caribbean',
+      'Island Breeze Caribbean',
+      'latin',
+      'caribbean',
+      '{"gluten-free","spicy"}',
+      'medium',
+      4.7,
+      32,
+      timezone('utc', now()) + interval '45 minutes',
+      2.49,
+      'Jerk Chicken with Pineapple Slaw',
+      'Free delivery over $30',
+      'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=1600&q=80',
+      '135 Island Breeze Ave, Orlando, FL',
+      '407-555-0134',
+      '{"Closes in under an hour","Signature jerk marinades","Combo-friendly sides"}'
+    ),
+    (
+      'sabor-latino-cantina',
+      'Sabor Latino Cantina',
+      'latin',
+      'mexican',
+      '{"gluten-free"}',
+      'low',
+      4.5,
+      28,
+      timezone('utc', now()) + interval '90 minutes',
+      1.99,
+      'Al Pastor Tacos',
+      '15% off tonight',
+      'https://images.unsplash.com/photo-1606755962773-0e7d4be90a77?auto=format&fit=crop&w=1600&q=80',
+      '205 Fiesta Blvd, Orlando, FL',
+      '407-555-0142',
+      '{"House-made tortillas","Family bundle specials","Late-night bites"}'
+    ),
+    (
+      'green-garden-bowls',
+      'Green Garden Bowls',
+      'healthy',
+      'plant-forward',
+      '{"vegetarian","gluten-free"}',
+      'medium',
+      4.8,
+      24,
+      timezone('utc', now()) + interval '60 minutes',
+      0,
+      'Caribbean Quinoa Bowl',
+      'BOGO 50% off bowls',
+      'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=1600&q=80',
+      '47 Fresh Market Way, Winter Park, FL',
+      '407-555-0110',
+      '{"Build-your-own bowl","Juice cleanse add-ons","Macro-friendly portions"}'
+    ),
+    (
+      'harvest-hearth-kitchen',
+      'Harvest & Hearth Kitchen',
+      'healthy',
+      'farm-to-table',
+      '{"vegetarian"}',
+      'high',
+      4.6,
+      38,
+      timezone('utc', now()) + interval '70 minutes',
+      4.5,
+      'Roasted Squash Grain Bowl',
+      'Free dessert with orders over $40',
+      'https://images.unsplash.com/photo-1528712306091-ed0763094c98?auto=format&fit=crop&w=1600&q=80',
+      '892 Hearthstone Ave, Maitland, FL',
+      '407-555-0188',
+      '{"Seasonal produce","Chef-curated pairings","Craft mocktails"}'
+    ),
+    (
+      'noodle-express',
+      'Noodle Express',
+      'asian',
+      'thai',
+      '{"spicy"}',
+      'medium',
+      4.4,
+      35,
+      timezone('utc', now()) + interval '110 minutes',
+      3.25,
+      'Drunken Noodles',
+      '2 entrees for $20',
+      'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=1600&q=80',
+      '512 Spice Lane, Altamonte Springs, FL',
+      '407-555-0165',
+      '{"Hand-pulled noodles","Late-night happy hour","Thai iced tea combos"}'
+    ),
+    (
+      'brick-oven-slice',
+      'Brick Oven Slice',
+      'comfort',
+      'pizza',
+      '{"vegetarian"}',
+      'low',
+      4.2,
+      29,
+      timezone('utc', now()) + interval '120 minutes',
+      1.5,
+      'Grandma Square Pie',
+      'Family meal $24.99',
+      'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=1600&q=80',
+      '75 Brickstone Plaza, Orlando, FL',
+      '407-555-0177',
+      '{"Wood-fired crust","By-the-slice classics","Overnight dough ferment"}'
+    )
+  on conflict (slug) do update set
+    name = excluded.name,
+    cuisine_group = excluded.cuisine_group,
+    cuisine = excluded.cuisine,
+    dietary_tags = excluded.dietary_tags,
+    price_tier = excluded.price_tier,
+    rating = excluded.rating,
+    eta_minutes = excluded.eta_minutes,
+    closes_at = excluded.closes_at,
+    delivery_fee = excluded.delivery_fee,
+    standout_dish = excluded.standout_dish,
+    promo = excluded.promo,
+    hero_image = excluded.hero_image,
+    address = coalesce(excluded.address, fc_restaurants.address),
+    phone = coalesce(excluded.phone, fc_restaurants.phone),
+    highlights = excluded.highlights,
+    updated_at = timezone('utc', now())
+  returning id, slug, name, cuisine
+)
+select 1;
+
+with restaurants as (
+  select id, slug, name, cuisine from fc_restaurants
+),
+orders as (
+  select r.id, r.slug, r.name, r.cuisine
+  from restaurants r
+  where r.slug in ('island-breeze-caribbean','green-garden-bowls','noodle-express')
+)
+insert into fc_orders (profile_id, restaurant_id, restaurant_name, cuisine, total, created_at, rating, satisfaction_notes)
+select
+  '00000000-0000-0000-0000-0000000000fc',
+  o.id,
+  o.name,
+  o.cuisine,
+  (array[32.75, 24.0, 18.5])[row_number() over (order by o.slug)],
+  timezone('utc', now()) - (row_number() over (order by o.slug)) * interval '6 days',
+  (array[5,4,5])[row_number() over (order by o.slug)],
+  (array['Loved the ginger glaze','Great crunch, a bit light on sauce','Perfect spice level'])[row_number() over (order by o.slug)]
+from orders o
+where not exists (
+  select 1 from fc_orders existing
+  where existing.profile_id = '00000000-0000-0000-0000-0000000000fc'
+    and existing.restaurant_id = o.id
+);
+
+with restaurants as (
+  select id, slug from fc_restaurants where slug = 'island-breeze-caribbean'
+)
+insert into fc_layouts (profile_id, hero_restaurant_id, focus_row, demote_rows, highlight_cuisine)
+select
+  '00000000-0000-0000-0000-0000000000fc',
+  r.id,
+  'Closing Soon Caribbean',
+  '{"Comfort Favorites"}',
+  'caribbean'
+from restaurants r
+on conflict (profile_id) do update set
+  hero_restaurant_id = excluded.hero_restaurant_id,
+  focus_row = excluded.focus_row,
+  demote_rows = excluded.demote_rows,
+  highlight_cuisine = excluded.highlight_cuisine,
+  updated_at = timezone('utc', now());
+

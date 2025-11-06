@@ -149,3 +149,95 @@ update mvnte_profiles
 set current_layout = default_layout,
     updated_at = timezone('utc', now())
 where id = '00000000-0000-0000-0000-000000000001';
+
+-- Food Court demo schema -------------------------------------------------
+
+drop table if exists fc_feedback cascade;
+drop table if exists fc_order_events cascade;
+drop table if exists fc_orders cascade;
+drop table if exists fc_layouts cascade;
+drop table if exists fc_restaurants cascade;
+drop table if exists fc_preferences cascade;
+drop table if exists fc_profiles cascade;
+
+create table if not exists fc_profiles (
+  id uuid primary key,
+  household_name text not null,
+  default_layout jsonb,
+  current_layout jsonb,
+  updated_at timestamptz default timezone('utc', now())
+);
+
+create table if not exists fc_preferences (
+  id uuid primary key default uuid_generate_v4(),
+  profile_id uuid references fc_profiles(id) on delete cascade,
+  favorite_cuisines text[] default '{}',
+  disliked_cuisines text[] default '{}',
+  dietary_tags text[] default '{}',
+  spice_level text,
+  budget_range text,
+  notes text,
+  updated_at timestamptz default timezone('utc', now())
+);
+
+create table if not exists fc_restaurants (
+  id uuid primary key default uuid_generate_v4(),
+  slug text unique not null,
+  name text not null,
+  cuisine_group text not null,
+  cuisine text not null,
+  dietary_tags text[] default '{}',
+  price_tier text,
+  rating numeric,
+  eta_minutes integer,
+  closes_at timestamptz,
+  delivery_fee numeric,
+  standout_dish text,
+  promo text,
+  hero_image text,
+  address text,
+  phone text,
+  highlights text[] default '{}',
+  is_active boolean default true,
+  created_at timestamptz default timezone('utc', now()),
+  updated_at timestamptz default timezone('utc', now())
+);
+
+create table if not exists fc_layouts (
+  profile_id uuid primary key references fc_profiles(id) on delete cascade,
+  hero_restaurant_id uuid references fc_restaurants(id),
+  focus_row text,
+  demote_rows text[] default '{}',
+  highlight_cuisine text,
+  updated_at timestamptz default timezone('utc', now())
+);
+
+create table if not exists fc_orders (
+  id uuid primary key default uuid_generate_v4(),
+  profile_id uuid references fc_profiles(id) on delete cascade,
+  restaurant_id uuid references fc_restaurants(id) on delete set null,
+  restaurant_name text not null,
+  cuisine text,
+  total numeric,
+  created_at timestamptz default timezone('utc', now()),
+  rating numeric,
+  satisfaction_notes text
+);
+
+create table if not exists fc_order_events (
+  id uuid primary key default uuid_generate_v4(),
+  profile_id uuid references fc_profiles(id) on delete cascade,
+  restaurant_id uuid references fc_restaurants(id) on delete set null,
+  restaurant_name text not null,
+  intent text not null,
+  notes text,
+  created_at timestamptz default timezone('utc', now())
+);
+
+create table if not exists fc_feedback (
+  id uuid primary key default uuid_generate_v4(),
+  profile_id uuid references fc_profiles(id) on delete cascade,
+  sentiment text not null,
+  notes text,
+  created_at timestamptz default timezone('utc', now())
+);

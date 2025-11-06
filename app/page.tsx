@@ -300,6 +300,9 @@ export default function Home() {
             </Link>
             <nav className="hidden gap-6 text-xs font-semibold uppercase tracking-[0.4em] text-netflix-gray-300 md:flex">
               <span className="text-white">Home</span>
+              <Link href="/food" className="transition hover:text-netflix-gray-100">
+                Food Court
+              </Link>
               <Link href="/voice" className="transition hover:text-netflix-gray-100">
                 Voice Concierge
               </Link>
@@ -349,6 +352,12 @@ export default function Home() {
                 className="inline-flex items-center gap-2 rounded-full bg-netflix-red px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-[#b20710]"
               >
                 {hero.cta}
+              </Link>
+              <Link
+                href="/food"
+                className="inline-flex items-center gap-2 rounded-full border border-zinc-700 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-netflix-gray-200 transition hover:border-zinc-500 hover:text-white"
+              >
+                Explore Food Court
               </Link>
                             <button
                               type="button"

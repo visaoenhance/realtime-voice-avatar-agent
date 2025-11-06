@@ -13,6 +13,11 @@ This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, vo
 - Spoken concierge replies powered by OpenAI TTS with a mute toggle
 - Automatic detection of spoken language (Spanish, etc.) with matching concierge replies
 - Classic “tile” homepage for contrast, plus a dedicated voice concierge route (`/voice`)
+- Parallel Food Court experience featuring:
+  - Marketplace home at `/food`
+  - Store detail and menu flows at `/food/stores/[slug]`
+  - Item detail customizer at `/food/stores/[slug]/items/[itemSlug]`
+  - Voice concierge relocated to `/food/concierge`
 
 ## Setup
 
@@ -23,16 +28,16 @@ This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, vo
 
 2. **Configure environment**
    ```bash
-   cp .env.example .env.local
+   cp env.local.example .env.local
    ```
-   Edit `.env.local` and add your OpenAI key (and optionally Mux API credentials if you intend to create assets programmatically). Add Supabase environment variables if you want the data-driven personalization flows:
+   Edit `.env.local` and add your OpenAI key. Add Supabase environment variables if you want the data-driven personalization flows (MovieNite + Food Court):
    ```
    OPENAI_API_KEY=sk-...
-   MUX_TOKEN_ID=...
-   MUX_TOKEN_SECRET=...
+   NEXT_PUBLIC_SUPABASE_URL=https://...supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=...
    SUPABASE_URL=https://...supabase.co
    SUPABASE_SERVICE_ROLE_KEY=...
-   DEMO_PROFILE_ID=00000000-0000-0000-0000-000000000001
+   DEMO_PROFILE_ID=00000000-0000-0000-0000-0000000000fc
    ```
 
 3. **Seed Supabase (optional but recommended)**
@@ -44,5 +49,6 @@ This project refactors the Vercel AI SDK HITL sample into a Netflix-inspired, vo
 
 5. **Explore both flows**
    - Visit [http://localhost:3000](http://localhost:3000) to see the traditional tile-based home screen with a call-to-action for the concierge.
-   - Jump to [http://localhost:3000/voice](http://localhost:3000/voice) to launch the fully voice-driven experience.
+   - Jump to [http://localhost:3000/voice](http://localhost:3000/voice) to launch the original MovieNite voice-driven experience.
+   - Test the Food Court concierge at [http://localhost:3000/food](http://localhost:3000/food) for restaurant discovery and ordering assistance.
 6. When ready to commit, say "Let's watch this"; the assistant triggers `startPlayback`, again asking for approval before confirming the stream is live and speaking the confirmation aloud (unless muted).
