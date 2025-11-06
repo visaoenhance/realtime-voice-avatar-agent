@@ -50,19 +50,19 @@ function ItemCard({
   return (
     <Link
       href={`/food/stores/${restaurantSlug}/items/${itemSlug}?category=${categorySlug}`}
-      className="flex gap-4 rounded-3xl border border-white/10 bg-slate-900/60 p-5 shadow-lg transition hover:-translate-y-1 hover:border-emerald-400/60"
+      className="flex gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
     >
       <div className="flex-1 space-y-2">
         <div className="flex items-center gap-3">
-          <h3 className="text-lg font-semibold text-white">{name}</h3>
+          <h3 className="text-lg font-semibold text-slate-900">{name}</h3>
           {tags?.map(tag => (
-            <span key={tag} className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200">
+            <span key={tag} className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
               {tag}
             </span>
           ))}
         </div>
-        {description ? <p className="text-sm text-slate-300">{description}</p> : null}
-        <div className="text-sm font-semibold text-slate-200">${price.toFixed(2)}</div>
+        {description ? <p className="text-sm text-slate-600">{description}</p> : null}
+        <div className="text-sm font-semibold text-slate-700">${price.toFixed(2)}</div>
       </div>
       <div
         className="h-24 w-28 shrink-0 overflow-hidden rounded-2xl bg-cover bg-center"
@@ -74,8 +74,9 @@ function ItemCard({
   );
 }
 
-export default async function StoreDetailPage({ params }: { params: { slug: string } }) {
-  const restaurant = await fetchRestaurantBySlug(params.slug);
+export default async function StoreDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const restaurant = await fetchRestaurantBySlug(slug);
 
   if (!restaurant) {
     notFound();
@@ -85,41 +86,43 @@ export default async function StoreDetailPage({ params }: { params: { slug: stri
   const minutesToClose = minutesUntilClose(restaurant.closes_at ?? undefined);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="border-b border-white/10 bg-slate-950/80 backdrop-blur">
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-6">
-          <Link href="/" className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400 transition hover:text-white">
+          <Link href="/" className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-500 transition hover:text-slate-900">
             ← Back to Food Court
           </Link>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-semibold text-white md:text-4xl">{restaurant.name}</h1>
-              <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-300">
+              <h1 className="text-3xl font-semibold text-slate-900 md:text-4xl">{restaurant.name}</h1>
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-600">
                 {restaurant.rating ? <span>{restaurant.rating.toFixed(1)} ★</span> : null}
-                <span className="h-1 w-1 rounded-full bg-slate-500" />
+                <span className="h-1 w-1 rounded-full bg-slate-300" />
                 <span>{restaurant.cuisine}</span>
-                <span className="h-1 w-1 rounded-full bg-slate-500" />
+                <span className="h-1 w-1 rounded-full bg-slate-300" />
                 <span>{formatEta(restaurant.eta_minutes)}</span>
                 {minutesToClose != null ? (
                   <>
-                    <span className="h-1 w-1 rounded-full bg-slate-500" />
-                    <span>{minutesToClose <= 15 ? `${minutesToClose} min — closing soon` : `${minutesToClose} min until closing`}</span>
+                    <span className="h-1 w-1 rounded-full bg-slate-300" />
+                    <span className={minutesToClose <= 15 ? 'text-amber-600' : ''}>
+                      {minutesToClose <= 15 ? `${minutesToClose} min — closing soon` : `${minutesToClose} min until closing`}
+                    </span>
                   </>
                 ) : null}
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.3em] text-slate-500">
                 <span>{formatDeliveryFee(restaurant.delivery_fee)}</span>
                 {restaurant.promo ? (
-                  <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-emerald-200">{restaurant.promo}</span>
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">{restaurant.promo}</span>
                 ) : null}
               </div>
             </div>
-            <div className="flex flex-col items-start gap-2 text-sm text-slate-300">
+            <div className="flex flex-col items-start gap-2 text-sm text-slate-600">
               {restaurant.address ? <span>{restaurant.address}</span> : null}
               {restaurant.phone ? <span>{restaurant.phone}</span> : null}
               <Link
                 href={`/food/stores/${restaurant.id}/items`}
-                className="rounded-full border border-emerald-400/60 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100"
+                className="rounded-full border border-emerald-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-600 transition hover:border-emerald-400 hover:text-emerald-700"
               >
                 View menu
               </Link>
@@ -139,14 +142,14 @@ export default async function StoreDetailPage({ params }: { params: { slug: stri
           <div className="flex h-full flex-col justify-end gap-4 p-10">
             <div className="flex flex-wrap items-center gap-3 text-sm text-emerald-100">
               {restaurant.highlights?.map(highlight => (
-                <span key={highlight} className="rounded-full bg-emerald-500/10 px-3 py-1">
+                <span key={highlight} className="rounded-full bg-emerald-500/20 px-3 py-1">
                   {highlight}
                 </span>
               ))}
             </div>
             {restaurant.standout_dish ? (
               <div>
-                <div className="text-xs uppercase tracking-[0.3em] text-emerald-200">Signature dish</div>
+                <div className="text-xs uppercase tracking-[0.3em] text-emerald-100">Signature dish</div>
                 <p className="text-lg font-semibold text-white">{restaurant.standout_dish}</p>
               </div>
             ) : null}
@@ -155,13 +158,13 @@ export default async function StoreDetailPage({ params }: { params: { slug: stri
 
         <section className="grid gap-8 md:grid-cols-[230px_1fr]">
           <aside className="space-y-2">
-            <div className="text-xs uppercase tracking-[0.3em] text-slate-400">Menu</div>
-            <nav className="grid gap-2 text-sm text-slate-200">
+            <div className="text-xs uppercase tracking-[0.3em] text-slate-500">Menu</div>
+            <nav className="grid gap-2 text-sm text-slate-600">
               {menu.map(category => (
                 <a
                   key={category.slug}
                   href={`#category-${category.slug}`}
-                  className="rounded-2xl border border-white/5 px-4 py-2 transition hover:border-emerald-400/60 hover:text-emerald-200"
+                  className="rounded-2xl border border-slate-200 px-4 py-2 transition hover:border-emerald-300 hover:text-emerald-600"
                 >
                   {category.title}
                 </a>
@@ -173,9 +176,9 @@ export default async function StoreDetailPage({ params }: { params: { slug: stri
             {menu.map(category => (
               <section key={category.slug} id={`category-${category.slug}`} className="space-y-4">
                 <div>
-                  <h2 className="text-2xl font-semibold text-white">{category.title}</h2>
+                  <h2 className="text-2xl font-semibold text-slate-900">{category.title}</h2>
                   {category.description ? (
-                    <p className="text-sm text-slate-400">{category.description}</p>
+                    <p className="text-sm text-slate-500">{category.description}</p>
                   ) : null}
                 </div>
                 <div className="grid gap-4">
@@ -196,7 +199,7 @@ export default async function StoreDetailPage({ params }: { params: { slug: stri
               </section>
             ))}
             {menu.length === 0 ? (
-              <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-10 text-center text-slate-400">
+              <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-500">
                 Menu data is coming soon. Launch the concierge for curated suggestions in the meantime.
               </div>
             ) : null}

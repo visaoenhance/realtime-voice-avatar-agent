@@ -125,29 +125,29 @@ export default function FoodCourtConcierge() {
   const isStreaming = status === 'streaming';
 
   return (
-    <div className="min-h-screen bg-[#0f1115] text-[#f7f8fa]">
-      <header className="border-b border-white/5 bg-black/40 backdrop-blur">
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
           <div className="flex items-center gap-10">
-            <Link href="/" className="font-display text-3xl tracking-[0.35em] text-[#4fd1c5]">
+            <Link href="/" className="font-display text-3xl tracking-[0.35em] text-emerald-600">
               Food Court
             </Link>
-            <nav className="hidden gap-6 text-xs font-semibold uppercase tracking-[0.3em] text-white/60 md:flex">
-              <Link href="/" className="transition hover:text-white">Home</Link>
-              <span className="text-white">Concierge</span>
-              <Link href="/voice" className="transition hover:text-white/80">MovieNite</Link>
+            <nav className="hidden gap-6 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 md:flex">
+              <Link href="/" className="transition hover:text-slate-900">Home</Link>
+              <span className="text-slate-900">Concierge</span>
+              <Link href="/voice" className="transition hover:text-slate-900">MovieNite</Link>
             </nav>
           </div>
           <div className="flex items-center gap-4 text-xs">
             <button
               type="button"
               onClick={toggleAssistantMute}
-              className="rounded-full border border-white/10 px-3 py-1 uppercase tracking-[0.3em] text-white/70 transition hover:border-white/30 hover:text-white"
+              className="rounded-full border border-slate-300 px-3 py-1 uppercase tracking-[0.3em] text-slate-600 transition hover:border-emerald-400 hover:text-emerald-600"
             >
               {isAssistantMuted ? 'Unmute Agent' : 'Mute Agent'}
             </button>
             {latestSpeechLabel ? (
-              <div className="hidden max-w-xs shrink text-right text-white/50 md:block">
+              <div className="hidden max-w-xs shrink text-right text-slate-500 md:block">
                 Speaking: {latestSpeechLabel}
               </div>
             ) : null}
@@ -156,12 +156,12 @@ export default function FoodCourtConcierge() {
       </header>
 
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10">
-        <section className="rounded-3xl border border-white/10 bg-black/30 p-8 shadow-xl">
+        <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.35em] text-white/60">Food Court Concierge</div>
-              <h1 className="mt-2 text-3xl font-semibold text-white md:text-4xl">Voice-led restaurant discovery</h1>
-              <p className="mt-3 max-w-2xl text-sm text-white/70">
+              <div className="text-xs uppercase tracking-[0.35em] text-slate-500">Food Court Concierge</div>
+              <h1 className="mt-2 text-3xl font-semibold text-slate-900 md:text-4xl">Voice-led restaurant discovery</h1>
+              <p className="mt-3 max-w-2xl text-sm text-slate-600">
                 Ask for cuisine ideas, closing soon options, or preference updates. The agent will confirm
                 each step and queue live restaurant data when Supabase credentials are connected.
               </p>
@@ -172,7 +172,7 @@ export default function FoodCourtConcierge() {
                   key={prompt}
                   type="button"
                   onClick={() => handleQuickPrompt(prompt)}
-                  className="rounded-full border border-[#4fd1c5] px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#4fd1c5] transition hover:bg-[#4fd1c5] hover:text-black"
+                  className="rounded-full border border-emerald-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-600 transition hover:border-emerald-400 hover:bg-emerald-50"
                 >
                   {prompt}
                 </button>
@@ -180,11 +180,11 @@ export default function FoodCourtConcierge() {
             </div>
           </div>
 
-          <div className="h-[460px] overflow-y-auto rounded-2xl border border-white/5 bg-black/40 p-6" id="food-court-chat">
+          <div className="h-[460px] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-6" id="food-court-chat">
             {messages.length === 0 && !hasSentInitialMessage ? (
-              <div className="flex h-full flex-col items-center justify-center text-center text-white/40">
-                <p className="text-lg font-medium">Say “Hey Food Court” to get started.</p>
-                <p className="mt-2 text-sm">Ask for dinner ideas, reorder favorites, or tweak your saved preferences.</p>
+              <div className="flex h-full flex-col items-center justify-center text-center text-slate-400">
+                <p className="text-lg font-medium text-slate-600">Say “Hey Food Court” to get started.</p>
+                <p className="mt-2 text-sm text-slate-500">Ask for dinner ideas, reorder favorites, or tweak your saved preferences.</p>
               </div>
             ) : (
               <div className="space-y-6">
@@ -192,11 +192,11 @@ export default function FoodCourtConcierge() {
                   const textParts = extractTextParts(message);
                   return (
                     <div key={message.id ?? Math.random()} className="space-y-2">
-                      <div className={`text-xs uppercase tracking-[0.35em] ${message.role === 'user' ? 'text-[#4fd1c5]' : 'text-white/50'}`}>
+                      <div className={`text-xs uppercase tracking-[0.35em] ${message.role === 'user' ? 'text-emerald-600' : 'text-slate-500'}`}>
                         {message.role === 'user' ? 'You' : 'Food Court Concierge'}
                       </div>
                       {textParts.map((text, index) => (
-                        <p key={index} className="text-sm leading-relaxed text-white/90">
+                        <p key={index} className="text-sm leading-relaxed text-slate-700">
                           {text}
                         </p>
                       ))}
@@ -214,9 +214,9 @@ export default function FoodCourtConcierge() {
                             }
                           }
                           return (
-                            <div key={`${message.id ?? 'assistant'}-${toolName}`} className="rounded-xl border border-white/10 bg-black/40 p-3 text-xs text-white/70">
-                              <div className="mb-1 font-semibold uppercase tracking-[0.3em] text-white/60">{toolName}</div>
-                              <pre className="whitespace-pre-wrap break-all text-[11px] text-white/80">
+                            <div key={`${message.id ?? 'assistant'}-${toolName}`} className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
+                              <div className="mb-1 font-semibold uppercase tracking-[0.3em] text-slate-500">{toolName}</div>
+                              <pre className="whitespace-pre-wrap break-all text-[11px] text-slate-700">
                                 {typeof parsed === 'string'
                                   ? parsed
                                   : JSON.stringify(parsed, null, 2)}
@@ -239,13 +239,13 @@ export default function FoodCourtConcierge() {
               onChange={event => setDraft(event.target.value)}
               rows={2}
               placeholder="Ask for dinner ideas, e.g., “Find a Caribbean spot that closes soon.”"
-              className="flex-1 rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white shadow-inner placeholder:text-white/40 focus:border-[#4fd1c5] focus:outline-none"
+              className="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 shadow-inner placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none"
             />
             <div className="flex items-center gap-3">
               <button
                 type="submit"
                 disabled={isStreaming}
-                className="rounded-full bg-[#4fd1c5] px-6 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-black transition hover:bg-[#38b2ac] disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full bg-emerald-500 px-6 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isStreaming ? 'Thinking…' : 'Send'}
               </button>
@@ -254,7 +254,7 @@ export default function FoodCourtConcierge() {
                 onClick={() => {
                   stopAssistantSpeech();
                 }}
-                className="rounded-full border border-white/10 px-5 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-white/70 transition hover:border-white/30 hover:text-white"
+                className="rounded-full border border-slate-300 px-5 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:border-emerald-400 hover:text-emerald-600"
               >
                 Stop
               </button>
@@ -263,13 +263,13 @@ export default function FoodCourtConcierge() {
         </section>
 
         {activeToolSummaries.length > 0 ? (
-          <section className="rounded-3xl border border-white/5 bg-black/30 p-6 text-sm text-white/70">
-            <div className="text-xs uppercase tracking-[0.35em] text-white/50">Latest tool activity</div>
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+            <div className="text-xs uppercase tracking-[0.35em] text-slate-500">Latest tool activity</div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               {activeToolSummaries.slice(-4).map(tool => (
-                <div key={tool.id} className="rounded-2xl border border-white/10 bg-black/40 p-4">
-                  <div className="text-xs uppercase tracking-[0.3em] text-[#4fd1c5]">{tool.name}</div>
-                  <pre className="mt-2 whitespace-pre-wrap break-all text-[11px] text-white/80">
+                <div key={tool.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs uppercase tracking-[0.3em] text-emerald-600">{tool.name}</div>
+                  <pre className="mt-2 whitespace-pre-wrap break-all text-[11px] text-slate-700">
                     {typeof tool.output === 'string'
                       ? tool.output
                       : JSON.stringify(tool.output, null, 2)}

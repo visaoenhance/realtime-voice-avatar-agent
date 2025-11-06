@@ -6,9 +6,9 @@ const display = Bebas_Neue({ subsets: ['latin'], weight: '400', variable: '--fon
 const body = Work_Sans({ subsets: ['latin'], variable: '--font-body' });
 
 export const metadata: Metadata = {
-  title: 'MovieNite Voice Concierge (HITL Demo)',
+  title: 'Food Court Voice Concierge (HITL Demo)',
   description:
-    'Voice-first human-in-the-loop concierge that helps households pick streaming titles with Netflix-inspired theming and explicit preview/playback approvals.',
+    'Human-in-the-loop concierge demo that reimagines the Netflix sample as a Food Court experience while keeping the original flow available for reference.',
 };
 
 export default function RootLayout({
@@ -18,7 +18,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${display.variable} ${body.variable}`}>
-      <body className="antialiased bg-netflix-black text-netflix-gray-100">
+      <body className="antialiased bg-slate-50 text-slate-800">
         {children}
       </body>
     </html>
