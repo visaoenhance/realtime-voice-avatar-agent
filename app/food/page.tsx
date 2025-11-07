@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { FALLBACK_RESTAURANTS, SampleRestaurant } from '@/data/foodCourtSamples';
 import { supabase } from '@/lib/supabaseServer';
+import HomeCartControls from './components/HomeCartControls';
 
 type RestaurantCard = {
   id: string;
@@ -211,15 +212,14 @@ export default async function FoodCourtHome() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em]">
+            <span className="text-slate-900">Home</span>
             <Link href="/food/concierge" className="text-slate-600 transition hover:text-slate-900">
               Concierge
-            </Link>
-            <Link href="/voice" className="text-slate-500 transition hover:text-slate-900">
-              MovieNite
             </Link>
             <Link href="/" className="hidden text-slate-400 transition hover:text-slate-900 md:inline">
               Dashboard
             </Link>
+            <HomeCartControls />
           </div>
         </div>
         <div className="border-t border-slate-200 bg-white">
