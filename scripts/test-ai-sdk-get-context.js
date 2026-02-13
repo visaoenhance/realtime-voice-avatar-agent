@@ -31,6 +31,7 @@ async function testGetUserContext() {
       body: JSON.stringify({
         messages: [
           { 
+            id: `msg-${Date.now()}`,
             role: 'user', 
             content: 'What are my food preferences and recent orders?' 
           }

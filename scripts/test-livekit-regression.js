@@ -43,6 +43,7 @@ async function testLiveKitRegression() {
       body: JSON.stringify({
         messages: [
           { 
+            id: `msg-${Date.now()}`,
             role: 'user', 
             content: 'I want cheesecake in Orlando' 
           }
@@ -101,6 +102,7 @@ async function testLiveKitRegression() {
       body: JSON.stringify({
         messages: [
           { 
+            id: `msg-${Date.now()}`,
             role: 'user', 
             content: 'add coconut shrimp to my cart' 
           }
@@ -157,6 +159,7 @@ async function testLiveKitRegression() {
       body: JSON.stringify({
         messages: [
           { 
+            id: `msg-${Date.now()}`,
             role: 'user', 
             content: 'checkout now' 
           }

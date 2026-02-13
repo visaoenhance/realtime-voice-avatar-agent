@@ -54,32 +54,49 @@ export const maxDuration = 30;
 export async function POST(req: Request) {
   try {
     const { messages }: { messages: VoiceUIMessage[] } = await req.json();
+    console.log('[voice-chat] Received messages:', JSON.stringify(messages, null, 2));
 
     const stream = createUIMessageStream({
       originalMessages: messages,
       execute: async ({ writer }) => {
-        const processedMessages = await processVoiceToolCalls({
-          messages,
-          writer,
-          tools: voiceTools,
-        }, {});
+        try {
+          const processedMessages = await processVoiceToolCalls({
+            messages,
+            writer,
+            tools: voiceTools,
+          }, {});
 
-        const modelMessages = convertToModelMessages(processedMessages);
-        modelMessages.unshift({ role: 'system', content: voiceSystemPrompt });
+          console.log('[voice-chat] Processed messages:', processedMessages.length);
 
-        const result = streamText({
-          model: openai('gpt-4o-mini'),
-          messages: modelMessages,
-          tools: voiceTools,
-        });
+          // Convert messages to simple format for model
+          const modelMessages = processedMessages.map((msg: any) => ({
+            role: msg.role,
+            content: msg.content || '',
+          }));
+          console.log('[voice-chat] Model messages:', modelMessages.length);
+          
+          modelMessages.unshift({ role: 'system', content: voiceSystemPrompt });
 
-        writer.merge(result.toUIMessageStream({ originalMessages: processedMessages }));
+          const result = streamText({
+            model: openai('gpt-4o-mini'),
+            messages: modelMessages,
+            tools: voiceTools,
+          });
+
+          writer.merge(result.toUIMessageStream({ originalMessages: processedMessages }));
+        } catch (executeError) {
+          console.error('[voice-chat] Execute error:', executeError);
+          throw executeError;
+        }
       },
     });
 
     return createUIMessageStreamResponse({ stream });
   } catch (error) {
-    console.error('Voice chat API error:', error);
-    return new Response('Internal Server Error', { status: 500 });
+    console.error('[voice-chat] Route error:', error);
+    return new Response(JSON.stringify({ error: String(error) }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }

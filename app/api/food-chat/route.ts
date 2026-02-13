@@ -50,30 +50,53 @@ Voice-first guidelines:
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages }: { messages: FoodCourtUIMessage[] } = await req.json();
+  try {
+    const { messages }: { messages: FoodCourtUIMessage[] } = await req.json();
+    console.log('[food-chat] Received messages:', JSON.stringify(messages, null, 2));
 
-  const stream = createUIMessageStream({
-    originalMessages: messages,
-    execute: async ({ writer }) => {
-      const processedMessages = await processToolCalls({
-        messages,
-        writer,
-        tools: foodTools,
-      }, {});
+    const stream = createUIMessageStream({
+      originalMessages: messages,
+      execute: async ({ writer }) => {
+        try {
+          const processedMessages = await processToolCalls({
+            messages,
+            writer,
+            tools: foodTools,
+          }, {});
 
-      const modelMessages = convertToModelMessages(processedMessages);
-      modelMessages.unshift({ role: 'system', content: systemPrompt });
+          console.log('[food-chat] Processed messages:', processedMessages.length);
+          console.log('[food-chat] Processed messages detail:', JSON.stringify(processedMessages, null, 2));
 
-      const result = streamText({
-        model: openai('gpt-4o-mini'),
-        messages: modelMessages,
-        tools: foodTools,
-      });
+          // Convert messages to simple format for model
+          const modelMessages = processedMessages.map((msg: any) => ({
+            role: msg.role,
+            content: msg.content || '',
+          }));
+          console.log('[food-chat] Model messages:', modelMessages.length);
+          
+          modelMessages.unshift({ role: 'system', content: systemPrompt });
 
-      writer.merge(result.toUIMessageStream({ originalMessages: processedMessages }));
-    },
-  });
+          const result = streamText({
+            model: openai('gpt-4o-mini'),
+            messages: modelMessages,
+            tools: foodTools,
+          });
 
-  return createUIMessageStreamResponse({ stream });
+          writer.merge(result.toUIMessageStream({ originalMessages: processedMessages }));
+        } catch (executeError) {
+          console.error('[food-chat] Execute error:', executeError);
+          throw executeError;
+        }
+      },
+    });
+
+    return createUIMessageStreamResponse({ stream });
+  } catch (error) {
+    console.error('[food-chat] Route error:', error);
+    return new Response(JSON.stringify({ error: String(error) }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }
 

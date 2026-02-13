@@ -30,6 +30,7 @@ async function testOrlandoSearch() {
       body: JSON.stringify({
         messages: [
           { 
+            id: `msg-${Date.now()}-1`,
             role: 'user', 
             content: 'can you help me find something to eat?' 
           }
@@ -73,14 +74,17 @@ async function testOrlandoSearch() {
       body: JSON.stringify({
         messages: [
           { 
+            id: `msg-${Date.now()}-1`,
             role: 'user', 
             content: 'can you help me find something to eat?' 
           },
           {
+            id: `msg-${Date.now()}-2`,
             role: 'assistant',
             content: assistantResponse1
           },
           {
+            id: `msg-${Date.now()}-3`,
             role: 'user',
             content: "I'm in Orlando"
           }

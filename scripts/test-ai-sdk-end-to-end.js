@@ -33,6 +33,7 @@ class ConversationTester {
     console.log(`\n👤 User: "${userMessage}"`);
     
     this.messages.push({
+      id: `msg-${Date.now()}-${this.messages.length}`,
       role: 'user',
       content: userMessage
     });
@@ -89,6 +90,7 @@ class ConversationTester {
 
     // Add assistant response to conversation history
     this.messages.push({
+      id: `msg-${Date.now()}-${this.messages.length}`,
       role: 'assistant',
       content: assistantResponse
     });

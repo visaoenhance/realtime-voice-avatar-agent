@@ -318,17 +318,26 @@
 ### Critical Bugs (Blocking All Flows)
 **BUG-001**: `Cannot read properties of undefined (reading 'map')` error
 - **Severity**: 🔴 CRITICAL
-- **Affects**: Both AI-SDK and LiveKit
-- **Description**: All API calls return streaming error, no tools execute
+- **Affects**: Both AI-SDK and LiveKit endpoints
+- **Description**: Direct API calls (curl/test scripts) return streaming error, no tools execute
 - **First Seen**: Commit 927187c (attempted incomplete fix)
-- **Root Cause**: TBD - need deeper investigation
-- **Tools Affected**: All tools (none execute)
-- **Status**: 🔴 UNRESOLVED
-- **Next Steps**: 
-  1. Add better error logging to catch actual error location
-  2. Check if AI SDK version compatibility issue
-  3. Verify tools export correctly
-  4. Test with minimal tool set
+- **Root Cause**: Under investigation - affects both `/api/food-chat` and `/api/voice-chat`
+- **Tools Affected**: All tools (none execute in curl tests)
+- **Status**: 🔴 UNRESOLVED - INVESTIGATION REQUIRED
+- **Key Findings**:
+  - User reports UI was working before (needs confirmation with current code)
+  - Both endpoints fail identically with curl/test scripts
+  - Error: `data: {"type":"error","errorText":"Cannot read properties of undefined (reading 'map')"}`
+  - No server-side errors logged to console
+  - Error appears to be caught at AI SDK streaming level
+- **Next Investigation Steps**: 
+  1. ✅ Confirmed: Error reproduces consistently with curl
+  2. ⏳ **NEEDED**: Test if browser UI still works (different call pattern?)
+  3. ⏳ Compare message format: UI vs curl/tests
+  4. ⏳ Add detailed server-side logging to pinpoint exact .map() call
+  5. ⏳ Check if AI SDK @5.0.82 has known issues
+  6. ⏳ Test with minimal tool set to isolate problem
+  7. ⏳ Compare working commit (before 927187c) with current state
 
 ### Database Schema Errors
 **BUG-002**: Rating column query error
