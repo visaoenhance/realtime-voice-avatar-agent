@@ -68,14 +68,16 @@ async function testLiveKitRegression() {
       const lines = chunk.split('\n').filter(line => line.trim());
       
       for (const line of lines) {
-        if (line.startsWith('0:')) {
-          searchResult += line.substring(3).replace(/^"|"$/g, '');
-        }
-        if (line.startsWith('9:')) {
+        if (line.startsWith('data: ')) {
           try {
-            const toolData = JSON.parse(line.substring(2));
-            if (toolData.toolName) {
-              searchTools.push(toolData.toolName);
+            const data = JSON.parse(line.substring(6));
+            if (data.type === 'text-delta' && data.textDelta) {
+              searchResult += data.textDelta;
+            } else if (data.type === 'text' && data.text) {
+              searchResult += data.text;
+            }
+            if (data.type === 'tool-input-start' && data.toolName) {
+              searchTools.push(data.toolName);
             }
           } catch (e) {
             // Ignore
@@ -126,14 +128,16 @@ async function testLiveKitRegression() {
       const lines = chunk.split('\n').filter(line => line.trim());
       
       for (const line of lines) {
-        if (line.startsWith('0:')) {
-          cartResult += line.substring(3).replace(/^"|"$/g, '');
-        }
-        if (line.startsWith('9:')) {
+        if (line.startsWith('data: ')) {
           try {
-            const toolData = JSON.parse(line.substring(2));
-            if (toolData.toolName) {
-              cartTools.push(toolData.toolName);
+            const data = JSON.parse(line.substring(6));
+            if (data.type === 'text-delta' && data.textDelta) {
+              cartResult += data.textDelta;
+            } else if (data.type === 'text' && data.text) {
+              cartResult += data.text;
+            }
+            if (data.type === 'tool-input-start' && data.toolName) {
+              cartTools.push(data.toolName);
             }
           } catch (e) {
             // Ignore
@@ -183,14 +187,16 @@ async function testLiveKitRegression() {
       const lines = chunk.split('\n').filter(line => line.trim());
       
       for (const line of lines) {
-        if (line.startsWith('0:')) {
-          checkoutResult += line.substring(3).replace(/^"|"$/g, '');
-        }
-        if (line.startsWith('9:')) {
+        if (line.startsWith('data: ')) {
           try {
-            const toolData = JSON.parse(line.substring(2));
-            if (toolData.toolName) {
-              checkoutTools.push(toolData.toolName);
+            const data = JSON.parse(line.substring(6));
+            if (data.type === 'text-delta' && data.textDelta) {
+              checkoutResult += data.textDelta;
+            } else if (data.type === 'text' && data.text) {
+              checkoutResult += data.text;
+            }
+            if (data.type === 'tool-input-start' && data.toolName) {
+              checkoutTools.push(data.toolName);
             }
           } catch (e) {
             // Ignore

@@ -62,18 +62,17 @@ async function testGetUserContext() {
       const lines = chunk.split('\n').filter(line => line.trim());
       
       for (const line of lines) {
-        // Text content
-        if (line.startsWith('0:')) {
-          const text = line.substring(3).replace(/^"|"$/g, '');
-          assistantResponse += text;
-        }
-        
-        // Tool calls
-        if (line.startsWith('9:')) {
+        // Parse SSE format
+        if (line.startsWith('data: ')) {
           try {
-            const toolData = JSON.parse(line.substring(2));
-            if (toolData.toolName) {
-              toolCalls.push(toolData.toolName);
+            const data = JSON.parse(line.substring(6));
+            if (data.type === 'text-delta' && data.textDelta) {
+              assistantResponse += data.textDelta;
+            } else if (data.type === 'text' && data.text) {
+              assistantResponse += data.text;
+            }
+            if (data.type === 'tool-input-start' && data.toolName) {
+              toolCalls.push(data.toolName);
             }
           } catch (e) {
             // Ignore parse errors

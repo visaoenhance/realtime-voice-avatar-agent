@@ -57,9 +57,15 @@ async function testOrlandoSearch() {
       const lines = chunk.split('\n').filter(line => line.trim());
       
       for (const line of lines) {
-        if (line.startsWith('0:')) {
-          const text = line.substring(3).replace(/^"|"$/g, '');
-          assistantResponse1 += text;
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.substring(6));
+            if (data.type === 'text-delta' && data.textDelta) {
+              assistantResponse1 += data.textDelta;
+            } else if (data.type === 'text' && data.text) {
+              assistantResponse1 += data.text;
+            }
+          } catch (e) { /* Ignore parse errors */ }
         }
       }
     }
@@ -108,16 +114,16 @@ async function testOrlandoSearch() {
       const lines = chunk.split('\n').filter(line => line.trim());
       
       for (const line of lines) {
-        if (line.startsWith('0:')) {
-          const text = line.substring(3).replace(/^"|"$/g, '');
-          assistantResponse2 += text;
-        }
-        if (line.startsWith('9:')) {
-          // Tool call data
+        if (line.startsWith('data: ')) {
           try {
-            const toolData = JSON.parse(line.substring(2));
-            if (toolData.toolName) {
-              toolCalls.push(toolData.toolName);
+            const data = JSON.parse(line.substring(6));
+            if (data.type === 'text-delta' && data.textDelta) {
+              assistantResponse2 += data.textDelta;
+            } else if (data.type === 'text' && data.text) {
+              assistantResponse2 += data.text;
+            }
+            if (data.type === 'tool-input-start' && data.toolName) {
+              toolCalls.push(data.toolName);
             }
           } catch (e) {
             // Ignore parse errors

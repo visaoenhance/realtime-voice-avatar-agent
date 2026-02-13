@@ -142,9 +142,9 @@ const MenuItemSpotlightCard: React.FC<MenuItemSpotlightCardProps> = ({ data }) =
                       </div>
                       
                       {/* Restaurant Name - prominently displayed */}
-                      {(item.restaurantName || item.restaurant?.name) && (
+                      {item.restaurantName && (
                         <div className="text-xs font-medium text-blue-600 mt-1">
-                          📍 {item.restaurantName || item.restaurant?.name}
+                          📍 {item.restaurantName}
                         </div>
                       )}
                       
