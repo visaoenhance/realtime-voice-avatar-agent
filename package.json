@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "verify-migration": "node scripts/verify-migration.js",
+    "test-api": "node scripts/test-api.js",
+    "verify-all": "npm run verify-migration && npm run test-api"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.58",
@@ -14,6 +17,7 @@
     "@mux/mux-player-react": "^3.8.0",
     "@supabase/supabase-js": "^2.78.0",
     "ai": "^5.0.82",
+    "dotenv": "^17.3.0",
     "next": "^16.0.1",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
