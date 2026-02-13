@@ -47,7 +47,7 @@ class FoodConciergeAgent {
   async sendWelcomeMessage() {
     const welcomeMessage = {
       role: 'assistant',
-      content: 'Hi! I\\'m your voice-powered food concierge. I can help you find restaurants, browse menus, and place orders. What are you craving today?'
+      content: 'Hi! I\'m your voice-powered food concierge. I can help you find restaurants, browse menus, and place orders. What are you craving today?'
     };
     
     this.conversationHistory.push(welcomeMessage);

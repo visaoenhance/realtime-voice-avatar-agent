@@ -98,18 +98,28 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
     
     // Cart addition responses  
     if ((lowerMessage.includes('yes') || lowerMessage.includes('add')) && (lowerMessage.includes('cart') || lowerMessage.includes('order'))) {
-      // Add item to visual cart
-      setCartItems(prev => [...prev, { 
-        name: 'Tropical Coconut Cheesecake', 
-        price: '$9.95', 
-        restaurant: 'Island Breeze Caribbean' 
-      }]);
-      return 'Perfect! I\'ve added the Tropical Coconut Cheesecake from Island Breeze Caribbean to your cart. Your cart total is now $9.95. Would you like to add anything else or are you ready to checkout?';
+      // Check if item is already in cart to prevent duplicates
+      const itemExists = cartItems.some(item => item.name === 'Tropical Coconut Cheesecake');
+      if (!itemExists) {
+        setCartItems(prev => [...prev, { 
+          name: 'Tropical Coconut Cheesecake', 
+          price: '$9.95', 
+          restaurant: 'Island Breeze Caribbean' 
+        }]);
+        return 'Perfect! I\'ve added the Tropical Coconut Cheesecake from Island Breeze Caribbean to your cart. Your cart total is now $9.95. Would you like to add anything else or are you ready to checkout?';
+      } else {
+        return 'The Tropical Coconut Cheesecake is already in your cart! Would you like to add anything else or are you ready to checkout?';
+      }
     } 
     
     // Enhanced cheesecake filtering - detect "no chocolate" requests
     if (lowerMessage.includes('cheesecake')) {
-      const needsNoChocolate = lowerMessage.includes('no chocolate') || lowerMessage.includes('without chocolate') || lowerMessage.includes('kill me make sure') || lowerMessage.includes('make sure it doesn\'t');
+      const needsNoChocolate = lowerMessage.includes('no chocolate') || 
+                               lowerMessage.includes('without chocolate') || 
+                               lowerMessage.includes('without the chocolate') ||
+                               lowerMessage.includes('but without') ||
+                               lowerMessage.includes('kill me make sure') || 
+                               lowerMessage.includes('make sure it doesn\'t');
       
       if (needsNoChocolate) {
         // Only offer the no-chocolate option
@@ -121,10 +131,11 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
     }
     
     // Handle image requests with helpful explanation
-    if (lowerMessage.includes('show') && (lowerMessage.includes('picture') || lowerMessage.includes('image'))) {
+    if ((lowerMessage.includes('show') && (lowerMessage.includes('picture') || lowerMessage.includes('image') || lowerMessage.includes('it to me') || lowerMessage.includes('what it looks'))) ||
+        lowerMessage.includes('see what') || lowerMessage.includes('looks like')) {
       // Show visual image placeholder
       setShowItemImage('Tropical Coconut Cheesecake - Coconut flakes, lime zest, mango puree. No chocolate!');
-      return 'I\'d love to show you a picture of that delicious Tropical Coconut Cheesecake! Unfortunately, I can\'t display images in voice mode, but I can tell you it\'s a beautiful tropical dessert with coconut flakes, lime zest, and mango puree - completely chocolate-free. Would you like me to add it to your cart?';
+      return 'I\'d love to show you what that delicious Tropical Coconut Cheesecake looks like! I\'ve displayed a preview above. It\'s a beautiful tropical dessert with coconut flakes, lime zest, and mango puree - completely chocolate-free. Would you like me to add it to your cart?';
     }
     
     // Thai food responses
