@@ -118,6 +118,8 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
                                lowerMessage.includes('without chocolate') || 
                                lowerMessage.includes('without the chocolate') ||
                                lowerMessage.includes('but without') ||
+                               lowerMessage.includes('does not have chocolate') ||
+                               lowerMessage.includes('doesn\'t have chocolate') ||
                                lowerMessage.includes('kill me make sure') || 
                                lowerMessage.includes('make sure it doesn\'t');
       
@@ -131,7 +133,8 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
     }
     
     // Handle image requests with helpful explanation
-    if ((lowerMessage.includes('show') && (lowerMessage.includes('picture') || lowerMessage.includes('image') || lowerMessage.includes('it to me') || lowerMessage.includes('what it looks'))) ||
+    if (lowerMessage.includes('show me') || 
+        (lowerMessage.includes('show') && (lowerMessage.includes('picture') || lowerMessage.includes('image') || lowerMessage.includes('it to me') || lowerMessage.includes('what it looks'))) ||
         lowerMessage.includes('see what') || lowerMessage.includes('looks like')) {
       // Show visual image placeholder
       setShowItemImage('Tropical Coconut Cheesecake - Coconut flakes, lime zest, mango puree. No chocolate!');
