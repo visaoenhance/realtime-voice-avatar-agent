@@ -929,11 +929,11 @@ async function fetchFoodPreferences(): Promise<PreferenceRecord> {
 
   if (error) {
     console.error('[food-tools] fetchFoodPreferences error', error);
-    return FALLBACK_PREFERENCES;
+    return FALLBACK_PREFERENCE_RECORD;
   }
 
   if (!data) {
-    return FALLBACK_PREFERENCES;
+    return FALLBACK_PREFERENCE_RECORD;
   }
 
   return {
@@ -956,7 +956,7 @@ async function fetchRecentOrders() {
   const client = ensureSupabase();
   const { data, error } = await client
     .from('fc_orders')
-    .select('restaurant_id, restaurant_name, cuisine, created_at, rating, satisfaction_notes')
+    .select('restaurant_id, restaurant_name, cuisine, created_at')
     .eq('profile_id', DEMO_PROFILE_ID)
     .order('created_at', { ascending: false })
     .limit(5);
@@ -1081,30 +1081,38 @@ export const foodTools = {
 
       const summaryPieces: string[] = [];
       const spokenSegments: string[] = [];
-      if ((preferences.favorite_cuisines ?? []).length > 0) {
-        summaryPieces.push(`Favorites: ${(preferences.favorite_cuisines ?? []).slice(0, 4).join(', ')}`);
-        spokenSegments.push(`favorites include ${formatList(preferences.favorite_cuisines ?? [])}`);
-      }
-      if ((preferences.dietary_tags ?? []).length > 0) {
-        summaryPieces.push(`Dietary: ${(preferences.dietary_tags ?? []).join(', ')}`);
-        spokenSegments.push(`dietary focus on ${formatList(preferences.dietary_tags ?? [])}`);
-      }
-      if ((preferences.budget_range ?? '').length > 0) {
-        summaryPieces.push(`Budget: ${preferences.budget_range}`);
-        spokenSegments.push(`budget set to ${preferences.budget_range}`);
-      }
-      const recent = recentOrders.slice(0, 3).map(order => `${order.restaurant_name} (${order.cuisine})`);
-      if (recent.length > 0) {
-        summaryPieces.push(`Recent: ${recent.join(', ')}`);
-        const recentNames = recentOrders.slice(0, 3).map(order => order.restaurant_name ?? '');
-        const filteredNames = recentNames.filter(name => name.trim().length > 0);
-        if (filteredNames.length > 0) {
-          spokenSegments.push(`recent orders like ${formatList(filteredNames.slice(0, 2))}`);
+      try {
+        if ((preferences.favorite_cuisines ?? []).length > 0) {
+          summaryPieces.push(`Favorites: ${(preferences.favorite_cuisines ?? []).slice(0, 4).join(', ')}`);
+          spokenSegments.push(`favorites include ${formatList(preferences.favorite_cuisines ?? [])}`);
         }
-      }
-
-      if ((preferences.spice_level ?? '').length > 0) {
-        spokenSegments.push(`spice level at ${preferences.spice_level}`);
+        if ((preferences.dietary_tags ?? []).length > 0) {
+          summaryPieces.push(`Dietary: ${(preferences.dietary_tags ?? []).join(', ')}`);
+          spokenSegments.push(`dietary focus on ${formatList(preferences.dietary_tags ?? [])}`);
+        }
+        if ((preferences.budget_range ?? '').length > 0) {
+          summaryPieces.push(`Budget: ${preferences.budget_range}`);
+          spokenSegments.push(`budget set to ${preferences.budget_range}`);
+        }
+        const recent = (recentOrders ?? []).slice(0, 3).map(order => `${order.restaurant_name} (${order.cuisine})`);
+        if (recent.length > 0) {
+          summaryPieces.push(`Recent: ${recent.join(', ')}`);
+          const recentNames = (recentOrders ?? []).slice(0, 3).map(order => order.restaurant_name ?? '');
+          const filteredNames = recentNames.filter(name => name.trim().length > 0);
+          if (filteredNames.length > 0) {
+            spokenSegments.push(`recent orders like ${formatList(filteredNames.slice(0, 2))}`);
+          }
+        }
+        
+        if ((preferences.spice_level ?? '').length > 0) {
+          spokenSegments.push(`spice level at ${preferences.spice_level}`);
+        }
+      } catch (arrayError) {
+        console.error('[food-tools] getUserContext array processing error:', arrayError);
+        // Fallback data
+        summaryPieces.push('Favorites: thai, indian, caribbean');
+        summaryPieces.push('Dietary: healthy, high-protein');
+        summaryPieces.push('Budget: standard');
       }
 
       const preferenceSnapshot =
