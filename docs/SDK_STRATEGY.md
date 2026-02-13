@@ -555,56 +555,144 @@ python agents/food_agent.py start
 
 ## Section 5: Parallel Implementation Strategy
 
-### 5.1 Deploy Both SDKs Simultaneously
+### 5.1 Visual Comparison Approach (Recommended)
 
-Your food delivery concierge can serve two user entry points:
+To demonstrate the differences between Vercel AI SDK and LiveKit, we'll create **parallel concierge pages** with identical UI but different backend plumbing:
 
-**Path A: Web Chat (Vercel AI SDK)** ← Current implementation  
-```
-User → Browser (React/UI) → /api/food-chat → OpenAI → Tools → HITL Approval Cards
-```
-**Use when**: Typed interactions, low-bandwidth, desktop/tablet users, workflow review needed.
+**Primary Page: `/food/concierge`** ← Current Vercel AI SDK implementation (UNTOUCHED)
+- Badge: "Powered by Vercel AI SDK"  
+- Backend: `/api/food-chat` → OpenAI → Tools → HITL Approval Cards
+- User Experience: HITL-first, prescriptive flow, context-loading upfront
+- Strengths: Human oversight, approval workflow, typed interactions
 
-**Path B: Voice Call (LiveKit Agents)** ← New implementation  
-```
-User → Phone/Browser (WebRTC) → LiveKit Media Server → Agent → OpenAI → Tools via RPC
-```
-**Use when**: Mobile users, voice-first preference, real-time turn detection needed, telephony integration desired.
+**Comparison Page: `/food/concierge-livekit`** ← New LiveKit implementation
+- Badge: "Powered by LiveKit Agents"
+- Backend: WebRTC → LiveKit Media Server → Agent → OpenAI → RPC approval  
+- User Experience: Natural conversation, intent-driven, context-on-demand
+- Strengths: Voice-first, organic flow, real-time turn detection
 
----
+### 5.2 Demo Flow: Side-by-Side Comparison
 
-### 5.2 Routing Strategy
+**Scenario 1: Specific Request ("I want cheesecake for my wife, no chocolate")**
 
-**Option 1: Separate Entry Points**
+| Vercel AI SDK Page | LiveKit Page |
+|-------------------|---------------|
+| 1. ⚠️ **HITL Approval**: "Load user preferences?" | 1. ✅ **Direct Response**: "Let me search for cheesecake without chocolate" |
+| 2. 👤 **User clicks** "Approve" | 2. 🤖 **Agent searches** immediately |
+| 3. 📋 **Context loads**: preferences, location, recent orders | 3. 🍰 **Results spoken**: "Found 2 options..." |
+| 4. 🔍 **Then searches** for cheesecake | 4. 💬 **Organic conversation** continues |
+
+**Key Difference**: LiveKit skips unnecessary HITL steps for clear intents, while Vercel AI SDK requires upfront approval for context loading.
+
+**Scenario 2: Broad Request ("What's good tonight?")**
+
+Both approaches would be similar since broad requests benefit from preference context.
+
+### 5.3 Implementation Strategy
+
+**Phase 1: Preserve Current Experience**
+- Keep `/food/concierge` exactly as-is (no changes)
+- Add "Vercel AI SDK" badge to show current implementation
+- Document current behavior as baseline
+
+**Phase 2: Create LiveKit Mirror**
+- Create `/food/concierge-livekit` with identical UI components
+- Route to LiveKit agent instead of `/api/food-chat`
+- Implement agent with more intent-driven prompting (less prescriptive)
+- Add "LiveKit Agents" badge
+
+**Phase 3: A/B Testing**
+- Same database (Supabase schema, user context, restaurant data)
+- Same `OPENAI_API_KEY` for cost/usage consistency
+- Different conversation patterns and approval flows
+- Collect user feedback on both experiences
+
+### 5.4 Technical Architecture
+
+**Shared Components (Same UI)**:
 ```typescript
-// pages/voice.tsx → connects to LiveKit room
-// pages/chat.tsx  → uses useChat() to Vercel API
-
-// On LiveKit Cloud dashboard, set webhook:
-// POST /api/livekit/webhooks → route agent dispatch
+// components/concierge/
+├── ConciergeChatInterface.tsx  ← Shared UI
+├── ApprovalCard.tsx            ← Used by both (HITL vs RPC)  
+├── RestaurantCard.tsx          ← Same visual components
+└── CartSummary.tsx             ← Same cart display
 ```
 
-**Option 2: Unified Concierge**
-- Both paths call the **same Supabase schema** for user context, cart, preferences
-- Both use **identical system prompt** (version control in `docs/PROMPTS.md`)
-- Divergence only in media transport (HTTP streaming vs WebRTC)
+**Different Backend Connections**:
+```typescript
+// pages/food/concierge.tsx (Current - Vercel AI SDK)
+const useChat = () => fetch('/api/food-chat', ...)  // HITL approval flow
+
+// pages/food/concierge-livekit.tsx (New - LiveKit)
+const useLiveKit = () => connectToRoom(...)         // RPC approval flow
+```
+
+**Backend Routing**:
+```
+Vercel AI SDK Path:
+User → /food/concierge → useChat() → /api/food-chat → OpenAI → HITL UI
+
+LiveKit Path:  
+User → /food/concierge-livekit → LiveKit WebRTC → Agent → OpenAI → RPC
+```
+
+### 5.5 UX Analysis Goals
+
+**Testing Questions**:
+1. **Intent Recognition**: Does LiveKit handle specific requests ("cheesecake, no chocolate") more naturally?
+2. **Conversation Flow**: Which feels more organic for voice interactions?
+3. **Approval Friction**: Is HITL helpful or disruptive for food ordering?
+4. **Context Loading**: When should user preferences be loaded vs. on-demand?
+5. **Error Recovery**: How do both handle misunderstandings or corrections?
+
+**Success Metrics**:
+- **Time to First Useful Response** (TTFR)
+- **Steps to Complete Order** (task efficiency) 
+- **User Satisfaction** (subjective feedback)
+- **Abandonment Rate** (do users complete orders?)
+- **Error Rate** (how often do orders need correction?)
+
+### 5.6 Page Structure Plan
+
+**Current Page (Preserve)**:
+```
+/food/concierge
+├── Badge: "Vercel AI SDK"
+├── Same chat interface as today
+├── Backend: /api/food-chat  
+├── Flow: HITL-first, context upfront
+└── Behavior: Current prescriptive experience
+```
+
+**New Comparison Page**:
+```  
+/food/concierge-livekit
+├── Badge: "LiveKit Agents"
+├── Identical UI components  
+├── Backend: WebRTC → LiveKit Agent
+├── Flow: Intent-driven, context on-demand
+└── Behavior: Natural conversation patterns
+```
+
+**Navigation**:
+- Add toggle/links between both pages
+- "Compare Approaches" section explaining differences
+- Preserve all current functionality to maintain working demo
 
 ---
 
 ### 5.3 Feature Parity Checklist
 
-| Feature | Vercel SDK | LiveKit | Priority |
-|---------|-----------|---------|----------|
-| getUserContext | ✅ Tool | ✅ Tool | P0 |
-| searchRestaurants | ✅ Tool | ✅ Tool | P0 |
-| getRestaurantMenu | ✅ Tool | ✅ Tool | P0 |
-| addItemToCart | ✅ Tool | ✅ Tool | P0 |
-| viewCart | ✅ Tool | ✅ Tool | P0 |
-| submitCartOrder (HITL) | ✅ Tool without execute | ⚠️ Via RPC (new) | P1 |
-| updatePreferences | ✅ Tool | ✅ Tool | P2 |
-| Turn Detection | ❌ Manual VAD | ✅ Built-in | P1 |
-| Telephony | ❌ Need Twilio | ✅ Native SIP | P2 |
-| Multi-language | ✅ System prompt | ✅ STT auto-detect | P2 |
+| Feature | Vercel SDK (/food/concierge) | LiveKit (/food/concierge-livekit) | Status |
+|---------|------------------------------|-----------------------------------|---------|
+| getUserContext | ✅ HITL approval required | ✅ Called only when needed | 🆕 Enhanced |
+| searchRestaurants | ✅ Tool with approval | ✅ Tool (background execution) | ✅ Same |
+| Specific requests ("cheesecake") | ❌ Still loads context first | ✅ Direct search, context secondary | 🎯 **Key Demo Point** |
+| getRestaurantMenu | ✅ Tool | ✅ Tool | ✅ Same |
+| addItemToCart | ✅ Tool | ✅ Tool | ✅ Same |
+| HITL Order Approval | ✅ UI approval cards | ✅ RPC approval | 🔄 Different UX |
+| Turn Detection | ❌ Manual recording | ✅ Built-in VAD | 🎯 **Key Demo Point** |
+| Voice Quality | ⚠️ External transcription | ✅ Native WebRTC | 🎯 **Key Demo Point** |
 
 ---
 
@@ -670,58 +758,81 @@ OpenAI key consumption is **identical regardless of SDK**; the SDK is just the t
 
 ---
 
-## Section 7: Migration & Risk Mitigation
+## Section 7: Implementation & Demo Preparation
 
-### 7.1 Phase 1: Parallel Development (Week 1–2)
+### 7.1 Phase 1: Preserve Current Experience (Week 1)
 
-1. **Set up LiveKit environment**
-   - Create LiveKit Cloud account
-   - Copy LIVEKIT_URL, API_KEY, API_SECRET to `.env.local`
+1. **Add Vercel AI SDK Badge** to `/food/concierge`
+   - Visual indicator: "Powered by Vercel AI SDK"
+   - Preserve all current functionality exactly as-is
+   - Document current behavior as baseline
 
-2. **Create food_agent.py**
-   - Copy tool logic from `/app/api/food-chat/tools.ts`
-   - Implement in Python with `@function_tool` decorator
-   - Test locally: `python agents/food_agent.py console`
+2. **Document Current Flow**
+   - Test current cheesecake demo scenario
+   - Record: "I want cheesecake" → getUserContext approval → context load → search
+   - Create comparison baseline for LiveKit implementation
 
-3. **Create test client** (minimal WebRTC client to connect)
-   - Use LiveKit's [React example](https://github.com/livekit/examples/tree/main/react-agents)
-   - Connect to food_agent and run through same flow
+### 7.2 Phase 2: Build LiveKit Mirror Page (Week 1-2)
 
-4. **Create /api/livekit/webhooks** (optional)
-   - LiveKit sends room lifecycle events
-   - Log for observability
+1. **Create `/food/concierge-livekit` page**
+   - Copy UI components from `/food/concierge`  
+   - Add "Powered by LiveKit Agents" badge
+   - Route to LiveKit WebRTC connection instead of `/api/food-chat`
 
----
+2. **Implement LiveKit Agent**
+   - Copy tool logic from `/app/api/food-chat/tools.ts` to Python agent
+   - **Key Change**: Modify system prompt to be intent-driven vs prescriptive
+   - Skip getUserContext for specific requests like "I want cheesecake"
+   - Load context only when needed for filtering/personalization
 
-### 7.2 Phase 2: Feature Parity Testing (Week 2–3)
+3. **Test Parallel Experience**
+   - Same database (Supabase), same restaurant data, same user context
+   - Different conversation patterns and approval workflows
+   - Verify both pages work independently
 
-| Test Case | Vercel SDK (Expected) | LiveKit (Target) | Status |
-|-----------|----------------------|------------------|--------|
-| TC-1: First user request → getUserContext | ✅ Tool called | ✅ Tool called | ? |
-| TC-2: Search restaurants by cuisine | ✅ Result shown | ✅ Result spoken | ? |
-| TC-3: Select restaurant → getMenu | ✅ Items listed | ✅ Items listed | ? |
-| TC-4: Add item to cart | ✅ Quantity confirmed | ✅ Quantity confirmed | ? |
-| TC-5: View cart summary | ✅ HTML card | ✅ Spoken summary | ? |
-| TC-6: Confirm order (HITL) | ✅ Approve button | ⚠️ Require RPC response | ? |
-| TC-7: Order placed confirmation | ✅ Text displayed | ✅ Text + spoken | ? |
+### 7.3 Phase 3: Demo Scenarios (Week 2)
 
----
+**Core Demo: Cheesecake for Wife (No Chocolate)**
 
-### 7.3 Phase 3: Production Cutover (Week 3–4)
+| Step | Vercel AI SDK Page | LiveKit Page |
+|------|-------------------|---------------|
+| User Input | "I want cheesecake for my wife, no chocolate" | "I want cheesecake for my wife, no chocolate" |
+| Agent Response | ⚠️ "Should I load your preferences first?" | ✅ "Let me find cheesecake without chocolate..." |
+| User Action | Must click "Approve" | Can continue talking |
+| Context Loading | Loads all preferences upfront | Loads only when needed |
+| Search Result | Delayed by approval step | Immediate search results |
+| Time to Result | ~10-15 seconds (with approval) | ~3-5 seconds (direct) |
 
-1. **Announce voice option in UI**
-   - Add "Try our voice concierge" link on `/food/concierge`
-   - Route to LiveKit WebRTC client
+**Outcome**: LiveKit shows more natural, intent-driven conversation for specific requests
 
-2. **Monitor both endpoints**
-   - Vercel SDK: `/api/food-chat` (existing)
-   - LiveKit: Agent process (new)
-   - Track errors, latency, tool call counts
+### 7.4 Phase 4: User Testing & Feedback (Week 2-3)
 
-3. **Phased traffic split** (optional)
-   - Start 10% of new users on LiveKit
-   - Ramp up to 50% after 1 week
-   - Full production when stable
+1. **A/B Test Setup**
+   - Direct users to try both pages
+   - Same scenarios: specific requests vs broad questions
+   - Collect feedback on which feels more natural
+
+2. **Demo Presentation Setup**
+   - Navigation between both pages during demo
+   - Side-by-side comparison for key scenarios  
+   - Clear explanation of architectural differences
+
+### 7.5 Technical Implementation Notes
+
+**Shared Infrastructure**:
+- Same Supabase database and schema
+- Same `OPENAI_API_KEY` (cost consistency)
+- Same restaurant data, user preferences, cart functionality
+- Same UI components and styling
+
+**Different Conversation Management**:
+```typescript
+// Vercel AI SDK (current): Always loads context first
+const systemPrompt = "On the very first request, call 'getUserContext'..."
+
+// LiveKit (new): Context on-demand based on intent  
+const systemPrompt = "For specific requests, search immediately. Load context only when needed for personalization..."
+```
 
 ---
 
@@ -834,27 +945,68 @@ async function sendRpcResponse(confirmed: boolean) {
 
 ## Section 11: Summary & Next Steps
 
-### 11.1 Immediate Actions
+### 11.1 Demo Strategy: Parallel Concierge Comparison
 
-1. **Create LiveKit Cloud account** (free, 1K agent-session minutes/month)
-2. **Copy `/app/api/food-chat/tools.ts` logic to `agents/food_agent.py`**
-3. **Test locally**: `python agents/food_agent.py console` (no external deps)
-4. **Create test WebRTC client** to join room and validate flow
+**Goal**: Visually demonstrate the differences between Vercel AI SDK and LiveKit using identical UI but different conversation patterns.
 
-### 11.2 Within 1 Week
+**Approach**:
+- **Preserve**: `/food/concierge` (current Vercel AI SDK implementation) - UNTOUCHED
+- **Create**: `/food/concierge-livekit` (new LiveKit implementation) - mirrors UI exactly
+- **Compare**: Same scenarios, different conversation patterns and approval flows
 
-- [ ] LiveKit agent runs same concierge logic as Vercel endpoint
-- [ ] HITL approval works via RPC
-- [ ] Telephony integration optional (Phase 2)
-- [ ] OpenAI key reuse confirmed
+### 11.2 Key Differentiators to Demonstrate
 
-### 11.3 Key Takeaways
+| Aspect | Vercel AI SDK | LiveKit Agents |
+|--------|---------------|----------------|
+| **Specific Requests** | Always loads context first (HITL approval) | Direct intent processing |
+| **"Cheesecake Demo"** | User must approve context loading | Immediate search and response |
+| **Conversation Flow** | Prescriptive, step-by-step | Natural, intent-driven |
+| **Voice Interaction** | External transcription, manual recording | Built-in turn detection, WebRTC |
+| **HITL Approval** | UI buttons in chat | RPC confirmation system |
 
-✅ **LiveKit is NOT a replacement**—it's a complement for voice-first use cases  
-✅ **OpenAI key works for both**: Use the same `OPENAI_API_KEY` in Vercel SDK and LiveKit  
-✅ **Recommend parallel deployment**: Vercel SDK for typed chat (current), LiveKit for voice calls (new)  
-✅ **HITL approval** in LiveKit uses RPC instead of approval UI buttons—still achievable  
-✅ **Setup is straightforward**: Python agent code provided, runs in ~50 lines per tool  
+### 11.3 Immediate Implementation Tasks
+
+**Week 1: Foundation**
+- [ ] Add "Vercel AI SDK" badge to current `/food/concierge` page  
+- [ ] Create `/food/concierge-livekit` with identical UI components
+- [ ] Set up LiveKit Cloud account and environment variables
+- [ ] Create basic LiveKit agent mirroring current tool functions
+
+**Week 1-2: Core Functionality**  
+- [ ] Implement intent-driven system prompt for LiveKit agent
+- [ ] Connect LiveKit page to WebRTC instead of `/api/food-chat`
+- [ ] Test both pages work with same database/restaurant data
+- [ ] Verify cheesecake demo works on both pages (different flows)
+
+**Week 2: Demo Preparation**
+- [ ] Document comparison scenarios and expected behaviors
+- [ ] Add navigation between both pages for easy comparison
+- [ ] Test voice quality and turn detection differences
+- [ ] Prepare demo script highlighting key differences
+
+### 11.4 Success Criteria
+
+✅ **Both pages functional**: Same restaurant data, same UI, different backends  
+✅ **Cheesecake demo comparison**: Clear difference in conversation patterns  
+✅ **Voice interaction**: LiveKit shows superior turn detection vs manual recording  
+✅ **HITL comparison**: Button approval vs RPC approval patterns  
+✅ **Intent processing**: LiveKit handles specific requests more naturally  
+
+### 11.5 Key Takeaways for Demo
+
+**Vercel AI SDK Strengths**:
+- ✅ Excellent for typed interactions and workflow review
+- ✅ HITL approval provides clear oversight and control  
+- ✅ Simple to develop and deploy (Next.js API routes)
+- ✅ Great for scenarios requiring human verification
+
+**LiveKit Agent Strengths**:
+- ✅ Natural conversation patterns for voice interactions
+- ✅ Intent-driven processing reduces friction for specific requests  
+- ✅ Superior voice quality and turn detection
+- ✅ Stateful sessions enable more organic multi-turn conversations
+
+**Best Use Case**: **Run both in parallel** - let users choose based on their interaction preference and use case needs.  
 
 ---
 

@@ -1,8 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { MenuCategory } from '@/data/foodSampleMenu';
-import { SAMPLE_MENU_BY_RESTAURANT } from '@/data/foodSampleMenu';
-import { fetchRestaurantBySlug } from '../_utils';
+import { fetchRestaurantBySlug, fetchMenuByRestaurantSlug } from '../_utils';
 
 function formatDeliveryFee(fee?: number | null) {
   if (fee == null) {
@@ -76,13 +75,14 @@ function ItemCard({
 
 export default async function StoreDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const restaurant = await fetchRestaurantBySlug(slug);
+  const [restaurant, menu] = await Promise.all([
+    fetchRestaurantBySlug(slug),
+    fetchMenuByRestaurantSlug(slug),
+  ]);
 
   if (!restaurant) {
     notFound();
   }
-
-  const menu: MenuCategory[] = SAMPLE_MENU_BY_RESTAURANT[restaurant.id] ?? [];
   const minutesToClose = minutesUntilClose(restaurant.closes_at ?? undefined);
 
   return (

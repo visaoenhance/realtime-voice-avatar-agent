@@ -214,10 +214,10 @@ export default async function FoodCourtHome() {
           <div className="flex flex-wrap items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em]">
             <span className="text-slate-900">Home</span>
             <Link href="/food/concierge" className="text-slate-600 transition hover:text-slate-900">
-              Concierge
+              Concierge (AI SDK - Vercel)
             </Link>
-            <Link href="/" className="hidden text-slate-400 transition hover:text-slate-900 md:inline">
-              Dashboard
+            <Link href="/food/concierge-livekit" className="text-slate-600 transition hover:text-slate-900">
+              Concierge (LiveKit)
             </Link>
             <HomeCartControls />
           </div>

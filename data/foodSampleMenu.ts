@@ -263,5 +263,119 @@ export const SAMPLE_MENU_BY_RESTAURANT: Record<string, MenuCategory[]> = {
       ],
     },
   ],
+
+  'brick-oven-slice': [
+    {
+      slug: 'pizzas',
+      title: 'Pizzas',
+      items: [
+        {
+          slug: 'grandma-square',
+          name: 'Grandma Square Pie',
+          description: 'Thin crust, fresh mozzarella, San Marzano tomatoes, basil',
+          price: 18.99,
+          rating: 4.5,
+          tags: ['Signature'],
+          image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=800&q=80',
+        },
+        {
+          slug: 'pepperoni-pizza',
+          name: 'Pepperoni Pizza',
+          description: 'Classic pepperoni with mozzarella cheese',
+          price: 16.99,
+          tags: ['Classic'],
+        },
+      ],
+    },
+  ],
+
+  'harvest-hearth-kitchen': [
+    {
+      slug: 'grain-bowls',
+      title: 'Grain Bowls',
+      items: [
+        {
+          slug: 'roasted-squash-bowl',
+          name: 'Roasted Squash Grain Bowl',
+          description: 'Roasted butternut squash, quinoa, kale, pomegranate seeds',
+          price: 14.99,
+          rating: 4.7,
+          tags: ['Signature', 'Vegan'],
+          image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=800&q=80',
+        },
+      ],
+    },
+  ],
+
+  'sabor-latino-cantina': [
+    {
+      slug: 'tacos',
+      title: 'Tacos',
+      description: 'Authentic Mexican tacos with house-made tortillas',
+      items: [
+        {
+          slug: 'al-pastor-tacos',
+          name: 'Al Pastor Tacos',
+          description: 'Marinated pork with pineapple, onion, and cilantro on corn tortillas',
+          price: 12.99,
+          rating: 4.8,
+          tags: ['Popular', 'Spicy'],
+          image: 'https://images.unsplash.com/photo-1565299585323-38174c7c3013?auto=format&fit=crop&w=800&q=80',
+        },
+        {
+          slug: 'carnitas-tacos',
+          name: 'Carnitas Tacos',
+          description: 'Slow-cooked pork with onions and cilantro',
+          price: 11.99,
+          tags: ['Traditional'],
+        },
+        {
+          slug: 'fish-tacos',
+          name: 'Fish Tacos',
+          description: 'Grilled tilapia with cabbage slaw and chipotle crema',
+          price: 13.99,
+          tags: ['Fresh', 'Light'],
+        },
+      ],
+    },
+    {
+      slug: 'entrees',
+      title: 'Entrées',
+      items: [
+        {
+          slug: 'chicken-burrito',
+          name: 'Chicken Burrito',
+          description: 'Seasoned chicken, rice, beans, cheese, lettuce, and salsa',
+          price: 10.99,
+          image: 'https://images.unsplash.com/photo-1626700051175-6818013e1d4f?auto=format&fit=crop&w=800&q=80',
+        },
+        {
+          slug: 'beef-quesadilla',
+          name: 'Beef Quesadilla',
+          description: 'Grilled tortilla filled with seasoned beef and melted cheese',
+          price: 9.99,
+          tags: ['Comfort Food'],
+        },
+      ],
+    },
+    {
+      slug: 'sides-drinks',
+      title: 'Sides & Drinks',
+      items: [
+        {
+          slug: 'chips-guacamole',
+          name: 'Chips & Guacamole',
+          description: 'Fresh tortilla chips with house-made guacamole',
+          price: 6.99,
+        },
+        {
+          slug: 'mexican-coke',
+          name: 'Mexican Coke',
+          description: 'Coca-Cola made with cane sugar',
+          price: 2.99,
+        },
+      ],
+    },
+  ],
 };
 
