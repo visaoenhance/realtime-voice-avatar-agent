@@ -544,8 +544,11 @@ async function recalculateCartSubtotal(cartId: string): Promise<number> {
 
 async function fetchCartSummary(cartId: string): Promise<CartSummary | null> {
   if (!supabase) {
+    console.log('[DEBUG] fetchCartSummary: No Supabase client');
     return null;
   }
+
+  console.log('[DEBUG] fetchCartSummary: Starting with cartId:', cartId);
 
   const client = ensureSupabase();
 
@@ -557,10 +560,19 @@ async function fetchCartSummary(cartId: string): Promise<CartSummary | null> {
 
   if (cartError || !cart) {
     if (cartError) {
-      console.error('[food-tools] fetchCartSummary cart error', cartError);
+      console.error('[DEBUG] fetchCartSummary cart error:', cartError);
+    } else {
+      console.log('[DEBUG] fetchCartSummary: No cart found for ID:', cartId);
     }
     return null;
   }
+
+  console.log('[DEBUG] fetchCartSummary: Cart found:', {
+    id: cart.id,
+    restaurant_id: cart.restaurant_id,
+    status: cart.status,
+    subtotal: cart.subtotal
+  });
 
   const { data: items, error: itemsError } = await client
     .from('fc_cart_items')
@@ -568,9 +580,11 @@ async function fetchCartSummary(cartId: string): Promise<CartSummary | null> {
     .eq('cart_id', cartId);
 
   if (itemsError) {
-    console.error('[food-tools] fetchCartSummary items error', itemsError);
+    console.error('[DEBUG] fetchCartSummary items error:', itemsError);
     return null;
   }
+
+  console.log('[DEBUG] fetchCartSummary: Found', items?.length || 0, 'cart items');
 
   const cartItemIds = (items ?? []).map(item => item.id);
 
@@ -583,9 +597,11 @@ async function fetchCartSummary(cartId: string): Promise<CartSummary | null> {
       .in('cart_item_id', cartItemIds);
 
     if (optionsError) {
-      console.error('[food-tools] fetchCartSummary options error', optionsError);
+      console.error('[DEBUG] fetchCartSummary options error:', optionsError);
       return null;
     }
+
+    console.log('[DEBUG] fetchCartSummary: Found', options?.length || 0, 'cart item options');
 
     optionMap = (options ?? []).reduce<Record<string, CartItemOptionSummary[]>>((acc, row) => {
       const choiceRelation = Array.isArray(row.choice) ? row.choice[0] : row.choice;
@@ -631,14 +647,24 @@ async function fetchCartSummary(cartId: string): Promise<CartSummary | null> {
 
 async function submitCartToOrder(cartId: string): Promise<{ orderId: string; subtotal: number; itemCount: number } | null> {
   if (!supabase) {
+    console.log('[DEBUG] submitCartToOrder: No Supabase client');
     return null;
   }
 
+  console.log('[DEBUG] submitCartToOrder: Starting with cartId:', cartId);
+  
   const client = ensureSupabase();
   const summary = await fetchCartSummary(cartId);
   if (!summary) {
+    console.log('[DEBUG] submitCartToOrder: fetchCartSummary returned null');
     return null;
   }
+
+  console.log('[DEBUG] submitCartToOrder: Cart summary:', {
+    restaurantId: summary.restaurantId,
+    subtotal: summary.subtotal,
+    itemCount: summary.items.length
+  });
 
   const { data: restaurant, error: restaurantError } = await client
     .from('fc_restaurants')
@@ -647,8 +673,22 @@ async function submitCartToOrder(cartId: string): Promise<{ orderId: string; sub
     .maybeSingle();
 
   if (restaurantError) {
-    console.error('[food-tools] submitCartToOrder restaurant error', restaurantError);
+    console.error('[DEBUG] submitCartToOrder restaurant error:', restaurantError);
+  } else {
+    console.log('[DEBUG] submitCartToOrder: Restaurant found:', restaurant);
   }
+
+  console.log('[DEBUG] submitCartToOrder: Creating order with data:', {
+    profile_id: DEMO_PROFILE_ID,
+    restaurant_id: summary.restaurantId,
+    restaurant_name: restaurant?.name ?? summary.restaurantName ?? 'Food Court restaurant',
+    order_number: `FC-${Date.now()}`,
+    total: summary.subtotal,
+    subtotal: summary.subtotal,
+    total_amount: summary.subtotal,
+    status: 'confirmed',
+    delivery_address: '123 Demo Street, Demo City, DC 12345'
+  });
 
   const { data: order, error: orderError } = await client
     .from('fc_orders')
@@ -656,18 +696,26 @@ async function submitCartToOrder(cartId: string): Promise<{ orderId: string; sub
       profile_id: DEMO_PROFILE_ID,
       restaurant_id: summary.restaurantId,
       restaurant_name: restaurant?.name ?? summary.restaurantName ?? 'Food Court restaurant',
-      cuisine: restaurant?.cuisine ?? null,
+      order_number: `FC-${Date.now()}`,
       total: summary.subtotal,
+      subtotal: summary.subtotal,
+      total_amount: summary.subtotal,
+      status: 'confirmed',
+      delivery_address: '123 Demo Street, Demo City, DC 12345'
     })
     .select('id')
     .single();
 
   if (orderError || !order?.id) {
-    console.error('[food-tools] submitCartToOrder order error', orderError);
+    console.error('[DEBUG] submitCartToOrder order creation failed:', orderError);
     return null;
   }
 
+  console.log('[DEBUG] submitCartToOrder: Order created with ID:', order.id);
+
   for (const item of summary.items) {
+    console.log('[DEBUG] submitCartToOrder: Processing item:', item.name);
+    
     const { data: insertedItem, error: insertItemError } = await client
       .from('fc_order_items')
       .insert({
@@ -683,7 +731,7 @@ async function submitCartToOrder(cartId: string): Promise<{ orderId: string; sub
       .single();
 
     if (insertItemError || !insertedItem?.id) {
-      console.error('[food-tools] submitCartToOrder order item error', insertItemError);
+      console.error('[DEBUG] submitCartToOrder order item error:', insertItemError);
       continue;
     }
 
@@ -699,7 +747,7 @@ async function submitCartToOrder(cartId: string): Promise<{ orderId: string; sub
         .insert(optionPayload);
 
       if (optionInsertError) {
-        console.error('[food-tools] submitCartToOrder option insert error', optionInsertError);
+        console.error('[DEBUG] submitCartToOrder option insert error:', optionInsertError);
       }
     }
   }
@@ -710,8 +758,14 @@ async function submitCartToOrder(cartId: string): Promise<{ orderId: string; sub
     .eq('id', cartId);
 
   if (cartUpdateError) {
-    console.error('[food-tools] submitCartToOrder cart update error', cartUpdateError);
+    console.error('[DEBUG] submitCartToOrder cart update error:', cartUpdateError);
   }
+
+  console.log('[DEBUG] submitCartToOrder: Success! Returning:', {
+    orderId: order.id,
+    subtotal: summary.subtotal,
+    itemCount: summary.items.length,
+  });
 
   return {
     orderId: order.id,
@@ -961,6 +1015,28 @@ async function fetchRestaurantRecords(filters: {
   const client = ensureSupabase();
   let query = client.from('fc_restaurants').select('*').eq('is_active', true);
 
+  // Get default location if needed
+  let locationToUse = filters.currentLocation;
+  if (filters.useDefaultLocation && !locationToUse) {
+    const { data: profileData } = await client
+      .from('fc_preferences')
+      .select('*, profile:fc_profiles(default_location)')
+      .eq('profile_id', DEMO_PROFILE_ID)
+      .single();
+    locationToUse = profileData?.profile?.default_location as any;
+  }
+
+  // Filter by location (Orlando metro area)
+  if (locationToUse?.city?.toLowerCase() === 'orlando') {
+    // Include Orlando metro area cities
+    query = query.or('address.ilike.%Orlando%,address.ilike.%Winter Park%,address.ilike.%Maitland%,address.ilike.%Altamonte Springs%');
+  } else if (locationToUse?.city) {
+    query = query.ilike('address', `%${locationToUse.city}%`);
+  }
+  if (locationToUse?.state) {
+    query = query.ilike('address', `%${locationToUse.state}%`);
+  }
+
   if (filters.cuisine) {
     const lowerCuisine = filters.cuisine.toLowerCase();
     query = query.or(`cuisine_group.ilike.${lowerCuisine},cuisine.ilike.${lowerCuisine}`);
@@ -969,6 +1045,7 @@ async function fetchRestaurantRecords(filters: {
     query = query.ilike('cuisine', filters.subCuisine);
   }
   if (filters.dietaryTags && filters.dietaryTags.length > 0) {
+    // Use OR logic - restaurant needs ANY of the dietary tags, not ALL
     query = query.overlaps('dietary_tags', filters.dietaryTags);
   }
   if (filters.budget) {
@@ -1457,7 +1534,8 @@ export const foodTools = {
         const subtotal = await recalculateCartSubtotal(cart.id);
         const summary = await fetchCartSummary(cart.id);
 
-        const speechSummary = `Added ${quantity} ${menuItem.name}${quantity > 1 ? 's' : ''} to your cart. Subtotal is now ${formatCurrency(subtotal)}.`;
+        const totalItems = summary?.items.reduce((total, item) => total + item.quantity, 0) || quantity;
+        const speechSummary = `Added ${quantity} ${menuItem.name}${quantity > 1 ? 's' : ''} to your cart. You now have ${totalItems} item${totalItems === 1 ? '' : 's'} totaling ${formatCurrency(subtotal)}.`;
 
         return JSON.stringify({
           success: true,
@@ -1635,15 +1713,10 @@ export const foodTools = {
     }),
     outputSchema: z.string(),
     async execute({ cartId, restaurantId, restaurantSlug }) {
-      if (!supabase) {
-        const message = 'Submitting orders requires Supabase to be configured. Please add Supabase keys first.';
-        return JSON.stringify({ success: false, message, speechSummary: message });
-      }
-
       try {
         const client = ensureSupabase();
         let targetCartId = cartId ?? null;
-        const restaurant = await resolveRestaurantIdentifier({ restaurantId, restaurantSlug });
+        const restaurantIdentifier = await resolveRestaurantIdentifier({ restaurantId, restaurantSlug });
 
         if (!targetCartId) {
           let cartQuery = client
@@ -1654,8 +1727,8 @@ export const foodTools = {
             .order('updated_at', { ascending: false })
             .limit(1);
 
-          if (restaurant?.id) {
-            cartQuery = cartQuery.eq('restaurant_id', restaurant.id);
+          if (restaurantIdentifier?.id) {
+            cartQuery = cartQuery.eq('restaurant_id', restaurantIdentifier.id);
           }
 
           const { data: cartRow, error: cartError } = await cartQuery.maybeSingle();
@@ -1677,13 +1750,33 @@ export const foodTools = {
           return JSON.stringify({ success: false, message, speechSummary: message });
         }
 
-        const speechSummary = `Great, I locked in ${submission.itemCount} item${submission.itemCount === 1 ? '' : 's'} for ${formatCurrency(submission.subtotal)}. Ready for checkout when you are.`;
+        // Fetch full restaurant record for additional details
+        let restaurantRecord: RestaurantRecord | null = null;
+        if (supabase && restaurantIdentifier?.id) {
+          const { data } = await client
+            .from('fc_restaurants')
+            .select('*')
+            .eq('id', restaurantIdentifier.id)
+            .maybeSingle();
+          restaurantRecord = data as RestaurantRecord | null;
+        }
+
+        const speechSummary = `Great, I locked in ${submission.itemCount} item${submission.itemCount === 1 ? '' : 's'} for ${formatCurrency(submission.subtotal)}. Your order has been confirmed!`;
 
         return JSON.stringify({
           success: true,
           orderId: submission.orderId,
-          subtotal: submission.subtotal,
+          restaurant: {
+            id: restaurantIdentifier?.id || 'unknown',
+            name: restaurantIdentifier?.name || 'Unknown Restaurant',
+            cuisine: restaurantRecord?.cuisine || 'Mixed',
+            rating: restaurantRecord?.rating || null,
+            etaMinutes: restaurantRecord?.eta_minutes || 30,
+            deliveryFee: restaurantRecord?.delivery_fee || 2.99
+          },
+          total: submission.subtotal + (restaurantRecord?.delivery_fee || 2.99),
           itemCount: submission.itemCount,
+          estimatedDeliveryTime: new Date(Date.now() + 30 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           speechSummary,
         });
       } catch (error) {

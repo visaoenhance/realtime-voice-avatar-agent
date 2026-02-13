@@ -9,7 +9,9 @@
     "lint": "next lint",
     "verify-migration": "node scripts/verify-migration.js",
     "test-api": "node scripts/test-api.js",
-    "verify-all": "npm run verify-migration && npm run test-api"
+    "verify-all": "npm run verify-migration && npm run test-api",
+    "test:cards": "node scripts/test-ui-cards.js",
+    "test:cards:dev": "node scripts/test-ui-cards.js --dev"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.58",
@@ -33,6 +35,7 @@
     "autoprefixer": "^10.4.0",
     "playwright": "^1.56.1",
     "postcss": "^8.4.0",
+    "puppeteer": "^24.37.3",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.5.0"
   }

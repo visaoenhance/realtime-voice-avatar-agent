@@ -1,5 +1,6 @@
-'use client';
+'use client'
 
+import React from 'react';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DefaultChatTransport, getToolName, isToolUIPart } from 'ai';
@@ -8,6 +9,8 @@ import type { UIMessage } from 'ai';
 import { useAssistantSpeech } from '@/hooks/useAssistantSpeech';
 import { useAudioTranscription } from '@/hooks/useAudioTranscription';
 import type { FoodCourtUIMessage } from '../../api/food-chat/types';
+import { CustomerProfileCard, RestaurantSearchCard, RestaurantMenuCard, ShoppingCartCard, MenuItemSpotlightCard, FoodImagePreviewCard, RestaurantRecommendationCard, OrderConfirmationCard } from '@/components/food-cards';
+import DebugPanel from '@/components/DebugPanel';
 
 const QUICK_PROMPTS = [
   'Help me pick a Caribbean dinner that is still open.',
@@ -107,152 +110,54 @@ type MenuItemPreview = {
   restaurantName?: string | null;
 };
 
-function renderToolOutput(toolName: string, payload: any) {
+function renderToolOutput(toolName: string, payload: any, debugTracker?: (execution: any) => void) {
+  // Debug logging to understand what's happening
+  console.log('🔧 renderToolOutput called:', { toolName, payload });
+  
+  // Track debug execution with safe deduplication
+  if (debugTracker) {
+    // Use a simpler, more stable deduplication key
+    const executionKey = `${toolName}-${typeof payload === 'object' ? JSON.stringify(payload).substring(0, 100) : payload}`;
+    debugTracker({
+      toolName,
+      payload,
+      executionKey, // Include key for deduplication
+      timestamp: Date.now()
+    });
+  }
+  
   if (!payload || typeof payload !== 'object') {
+    console.log('❌ Invalid payload, returning null');
     return null;
   }
 
   switch (toolName) {
     case 'getRestaurantMenu': {
-      const sections = Array.isArray(payload.sections) ? payload.sections : [];
-      const restaurantName = payload.restaurant?.name ?? 'the restaurant';
-
-      if (sections.length === 0) {
-        return <div className="text-xs text-slate-500">No menu sections available right now.</div>;
+      console.log('✅ getRestaurantMenu case reached!', { payload });
+      
+      if (!payload || !payload.restaurant || !Array.isArray(payload.sections)) {
+        return <div className="text-xs text-red-500">Unable to load restaurant menu.</div>;
       }
 
-      return (
-        <div className="space-y-4">
-          <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-600">
-            Menu Overview – {restaurantName}
-          </div>
-          {sections.map((section: any) => (
-            <div key={section.id ?? section.slug} className="space-y-1">
-              <div className="text-sm font-semibold text-slate-800">{section.title}</div>
-              {section.description ? (
-                <p className="text-xs text-slate-500">{section.description}</p>
-              ) : null}
-              <ul className="mt-1 space-y-2 text-xs text-slate-600">
-                {(section.items ?? []).slice(0, 3).map((item: any) => (
-                  <li key={item.id ?? item.slug} className="flex items-start gap-3">
-                    {item.image ? (
-                      <img
-                        src={item.image}
-                        alt={item.name ?? 'Menu item'}
-                        className="h-12 w-12 rounded-lg object-cover shadow-sm"
-                      />
-                    ) : (
-                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-200 text-[10px] uppercase tracking-[0.2em] text-slate-500">
-                        {item.name?.slice(0, 2) ?? 'MI'}
-                      </div>
-                    )}
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-slate-700">{item.name}</span>
-                        <span className="text-slate-500">
-                          {formatMoney(typeof item.price === 'number' ? item.price : Number(item.price ?? 0))}
-                        </span>
-                      </div>
-                      {item.tags && item.tags.length > 0 ? (
-                        <div className="text-[11px] text-slate-400">{item.tags.join(', ')}</div>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-                {(section.items ?? []).length > 3 ? (
-                  <li className="text-[10px] uppercase tracking-[0.2em] text-slate-400">plus more…</li>
-                ) : null}
-              </ul>
-            </div>
-          ))}
-        </div>
-      );
+      return <RestaurantMenuCard data={payload} />;
     }
     case 'searchMenuItems': {
-      const results = Array.isArray(payload.results) ? payload.results : [];
-      if (results.length === 0) {
-        return <div className="text-xs text-slate-500">No menu items matched those filters.</div>;
+      console.log('✅ searchMenuItems case reached!', { payload });
+      
+      if (!payload || !Array.isArray(payload.results)) {
+        return <div className="text-xs text-red-500">Unable to load menu item search results.</div>;
       }
 
-      return (
-        <div className="space-y-2">
-          <div className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-600">Menu Matches</div>
-          <ul className="space-y-2 text-xs text-slate-600">
-            {results.map((item: any) => (
-              <li key={item.id ?? item.slug} className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                {item.image ? (
-                  <img
-                    src={item.image}
-                    alt={item.name ?? 'Menu item'}
-                    className="h-14 w-14 rounded-lg object-cover shadow-sm"
-                  />
-                ) : (
-                  <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-slate-200 text-[10px] uppercase tracking-[0.2em] text-slate-500">
-                    {item.name?.slice(0, 2) ?? 'MI'}
-                  </div>
-                )}
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-slate-700">{item.name}</span>
-                    <span className="text-slate-500">
-                      {formatMoney(typeof item.price === 'number' ? item.price : Number(item.price ?? 0))}
-                    </span>
-                  </div>
-                  {item.sectionTitle ? (
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">{item.sectionTitle}</div>
-                  ) : null}
-                  {item.description ? (
-                    <p className="text-[11px] text-slate-500">{item.description}</p>
-                  ) : null}
-                  {item.tags && item.tags.length > 0 ? (
-                    <div className="flex flex-wrap gap-1 text-[10px] text-emerald-600">
-                      {item.tags.map((tag: string) => (
-                        <span key={tag} className="rounded-full bg-emerald-100 px-2 py-0.5">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      );
+      return <MenuItemSpotlightCard data={payload} />;
     }
     case 'addItemToCart': {
+      console.log('✅ addItemToCart case reached!', { payload });
+      
       if (!payload || payload.success === false) {
         return <div className="text-xs text-red-500">{payload?.message ?? 'Unable to add item to cart.'}</div>;
       }
-      const item = payload.item ?? {};
-      const options = Array.isArray(item.options) ? item.options : [];
 
-      return (
-        <div className="space-y-2 text-xs text-slate-600">
-          <div className="text-sm font-semibold text-slate-800">Added to Cart</div>
-          <div className="flex items-center justify-between">
-            <span>
-              {item.quantity ?? 1} × {item.name ?? 'Menu item'}
-            </span>
-            <span className="font-semibold text-slate-700">{formatMoney(typeof item.linePrice === 'number' ? item.linePrice : Number(item.linePrice ?? 0))}</span>
-          </div>
-          {options.length > 0 ? (
-            <ul className="ml-4 list-disc space-y-1 text-[11px] text-slate-500">
-              {options.map((option: any) => (
-                <li key={option.id ?? option.label}>
-                  {option.label}
-                  {typeof option.priceAdjustment === 'number' && option.priceAdjustment !== 0
-                    ? ` (${formatMoney(option.priceAdjustment)})`
-                    : ''}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
-            Subtotal {formatMoney(typeof payload.subtotal === 'number' ? payload.subtotal : Number(payload.subtotal ?? 0))}
-          </div>
-        </div>
-      );
+      return <ShoppingCartCard data={payload} />;
     }
     case 'viewCart': {
       if (!payload || payload.success === false) {
@@ -303,91 +208,49 @@ function renderToolOutput(toolName: string, payload: any) {
       );
     }
     case 'submitCartOrder': {
-      if (!payload || payload.success === false) {
-        return <div className="text-xs text-red-500">{payload?.message ?? 'Unable to submit the cart right now.'}</div>;
+      console.log('✅ submitCartOrder case reached!', { payload });
+      
+      if (!payload) {
+        return <div className="text-xs text-red-500">Unable to process order confirmation.</div>;
       }
 
-      return (
-        <div className="space-y-1 text-xs text-slate-600">
-          <div className="text-sm font-semibold text-slate-800">Cart submitted</div>
-          <div>
-            {payload.itemCount ?? 0} item{payload.itemCount === 1 ? '' : 's'} totaling{' '}
-            {formatMoney(typeof payload.subtotal === 'number' ? payload.subtotal : Number(payload.subtotal ?? 0))}
-          </div>
-          <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Order ID {payload.orderId}</div>
-        </div>
-      );
+      return <OrderConfirmationCard data={payload} />;
     }
     case 'fetchMenuItemImage': {
-      if (!payload || payload.success === false) {
-        return <div className="text-xs text-red-500">{payload?.message ?? 'Unable to load that image.'}</div>;
+      console.log('✅ fetchMenuItemImage case reached!', { payload });
+      
+      if (!payload) {
+        return <div className="text-xs text-red-500">Unable to load image preview.</div>;
       }
 
-      const menuItem = payload.menuItem ?? {};
-      const price =
-        typeof menuItem.price === 'number'
-          ? menuItem.price
-          : menuItem.price != null
-          ? Number(menuItem.price)
-          : null;
-      const tags = Array.isArray(menuItem.tags) ? menuItem.tags : [];
+      return <FoodImagePreviewCard data={payload} />;
+    }
+    case 'getUserContext': {
+      console.log('✅ getUserContext case reached!', { payload });
+      
+      if (!payload || !payload.profile) {
+        return <div className="text-xs text-red-500">Unable to load user profile.</div>;
+      }
 
-      return (
-        <div className="space-y-3 text-xs text-slate-600">
-          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-600">
-            Visual Preview
-          </div>
-          <div className="flex flex-col gap-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm md:flex-row">
-            <div className="overflow-hidden rounded-2xl bg-white md:flex-1">
-              {payload.imageUrl ? (
-                <img
-                  src={payload.imageUrl}
-                  alt={menuItem.name ?? 'Menu item'}
-                  className="h-64 w-full object-cover md:h-full"
-                />
-              ) : (
-                <div className="flex h-64 w-full items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-slate-400">
-                  No image available.
-                </div>
-              )}
-            </div>
-            <div className="flex flex-col justify-between gap-3 md:w-80">
-              <div className="space-y-2">
-                <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
-                  {payload.restaurant?.name ?? 'Menu item'} highlight
-                </div>
-                <div className="text-lg font-semibold text-slate-900">{menuItem.name ?? 'Menu item'}</div>
-                {menuItem.sectionTitle ? (
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-emerald-600">{menuItem.sectionTitle}</div>
-                ) : null}
-                {menuItem.description ? <p className="text-sm text-slate-600">{menuItem.description}</p> : null}
-              </div>
-              <div className="space-y-2 text-sm text-slate-700">
-                {price != null && !Number.isNaN(price) ? (
-                  <div className="text-base font-semibold text-slate-900">{formatMoney(price)}</div>
-                ) : null}
-                {tags.length > 0 ? (
-                  <div className="flex flex-wrap gap-2 text-[11px] text-emerald-700">
-                    {tags.map((tag: string) => (
-                      <span key={tag} className="rounded-full bg-emerald-100 px-2 py-0.5">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                {menuItem.calories ? (
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
-                    {menuItem.calories} calories
-                  </div>
-                ) : null}
-                <div className="text-[11px] text-slate-500">
-                  Would you like to add this to your cart or keep exploring?
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
+      return <CustomerProfileCard data={payload} />;
+    }
+    case 'searchRestaurants': {
+      console.log('✅ searchRestaurants case reached!', { payload });
+      
+      if (!payload || !Array.isArray(payload.results)) {
+        return <div className="text-xs text-red-500">Unable to load restaurant search results.</div>;
+      }
+
+      return <RestaurantSearchCard data={payload} />;
+    }
+    case 'recommendShortlist': {
+      console.log('✅ recommendShortlist case reached!', { payload });
+      
+      if (!payload || !Array.isArray(payload.shortlist)) {
+        return <div className="text-xs text-red-500">Unable to load recommendations.</div>;
+      }
+
+      return <RestaurantRecommendationCard data={payload} />;
     }
     default:
       return null;
@@ -511,6 +374,28 @@ export default function FoodCourtConcierge() {
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [lastMenuItems, setLastMenuItems] = useState<MenuItemPreview[]>([]);
   const [pendingVisualRequest, setPendingVisualRequest] = useState<string | null>(null);
+  
+  // Debug panel state
+  const [debugExecutions, setDebugExecutions] = useState<Array<{
+    toolName: string
+    payload: any
+    timestamp: number
+    executionTime?: number
+  }>>([]);
+  
+  // Track logged executions to prevent duplicates during re-renders
+  const loggedExecutionsRef = useRef<Set<string>>(new Set());
+
+  // Memoized debug tracker to prevent infinite re-renders
+  const debugTracker = useCallback((execution: any) => {
+    // Create ID based on tool name and payload content, NOT timestamp
+    const executionId = `${execution.toolName}-${JSON.stringify(execution.payload)}`;
+    
+    if (!loggedExecutionsRef.current.has(executionId)) {
+      loggedExecutionsRef.current.add(executionId);
+      setDebugExecutions(prev => [...prev, { ...execution, timestamp: Date.now() }]);
+    }
+  }, []);
 
   const attemptOpenVisualPreview = useCallback(
     (items: MenuItemPreview[], fallbackRestaurantName?: string | null) => {
@@ -617,7 +502,7 @@ export default function FoodCourtConcierge() {
     speakAssistant(messageId, speech.content);
     lastAssistantMessageId.current = messageId;
     lastSpokenSignatureRef.current = signature;
-  }, [messages, speakAssistant, status]);
+  }, [messages, status]); // Removed speakAssistant to prevent infinite loops
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -682,7 +567,7 @@ export default function FoodCourtConcierge() {
       return;
     }
     attemptOpenVisualPreview(lastMenuItems);
-  }, [pendingVisualRequest, imageModalOpen, lastMenuItems, attemptOpenVisualPreview]);
+  }, [pendingVisualRequest, imageModalOpen, lastMenuItems]); // Removed attemptOpenVisualPreview to prevent infinite loops
 
   const handleQuickPrompt = (prompt: string) => {
     if (!prompt) {
@@ -799,7 +684,7 @@ export default function FoodCourtConcierge() {
   useEffect(() => {
     void fetchCartFromApi();
     void fetchOrdersFromApi();
-  }, [fetchCartFromApi, fetchOrdersFromApi]);
+  }, []); // Removed function dependencies to prevent infinite loops - these are stable refs
 
   useEffect(() => {
     messages.forEach(message => {
@@ -931,7 +816,7 @@ export default function FoodCourtConcierge() {
         }
       });
     });
-  }, [messages, fetchCartFromApi, fetchOrdersFromApi, attemptOpenVisualPreview]);
+  }, [messages]); // Removed function dependencies to prevent infinite loops
 
   const openCartModal = useCallback(() => {
     void fetchCartFromApi();
@@ -1123,7 +1008,7 @@ export default function FoodCourtConcierge() {
                               parsed = raw;
                             }
                           }
-                          const rendered = renderToolOutput(toolName, parsed);
+                          const rendered = renderToolOutput(toolName, parsed, debugTracker);
                           return (
                             <div
                               key={`${message.id ?? 'assistant'}-${toolName}-${partIndex}`}
@@ -1432,6 +1317,9 @@ export default function FoodCourtConcierge() {
           </div>
         </div>
       ) : null}
+      
+      {/* Debug Panel */}
+      <DebugPanel toolExecutions={debugExecutions} isProduction={process.env.NODE_ENV === 'production'} />
     </div>
   );
 }

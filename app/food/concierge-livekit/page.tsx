@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Room, RoomEvent, RemoteTrack, Track } from 'livekit-client';
 import { useAudioTranscription } from '@/hooks/useAudioTranscription';
 import { useAssistantSpeech } from '@/hooks/useAssistantSpeech';
+import { CustomerProfileCard, RestaurantSearchCard, RestaurantMenuCard, ShoppingCartCard, MenuItemSpotlightCard, FoodImagePreviewCard, RestaurantRecommendationCard, OrderConfirmationCard } from '@/components/food-cards';
+import DebugPanel from '@/components/DebugPanel';
 
 const SAMPLE_VOICE_PROMPTS = [
   'I want Thai food for lunch',
@@ -13,17 +15,123 @@ const SAMPLE_VOICE_PROMPTS = [
   'What\'s good at Island Breeze Caribbean?',
 ];
 
+const currencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+});
+
+function formatMoney(value?: number | null): string {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return '$0.00';
+  }
+  return currencyFormatter.format(value);
+}
+
 interface LiveKitConciergePageProps {}
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  toolName?: string;
+  toolResult?: any;
+}
 
 export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
   const [room, setRoom] = useState<Room | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
-  const [cartItems, setCartItems] = useState<Array<{ name: string; price: string; restaurant: string }>>([]);
-  const [showItemImage, setShowItemImage] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [showItemImage, setShowItemImage] = useState<{ url: string; description: string } | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Debug panel state
+  const [debugExecutions, setDebugExecutions] = useState<Array<{
+    toolName: string
+    payload: any
+    timestamp: number
+    executionTime?: number
+  }>>([]);
+  
+  // Card rendering function (restored for multimodal UX)
+  function renderToolOutput(toolName: string, payload: any) {
+    console.log('🔧 renderToolOutput called:', { toolName, payload });
+    
+    if (!payload || typeof payload !== 'object') {
+      console.log('❌ Invalid payload, returning null');
+      return null;
+    }
+
+    switch (toolName) {
+      case 'getUserContext':
+      case 'getUserProfile': {
+        if (!payload || !payload.profile) {
+          return <div className="text-xs text-red-500">Unable to load user profile.</div>;
+        }
+        return <CustomerProfileCard data={payload} />;
+      }
+      case 'searchRestaurants': {
+        if (!payload || !Array.isArray(payload.restaurants)) {
+          return <div className="text-xs text-red-500">Unable to load restaurant search results.</div>;
+        }
+        return <RestaurantSearchCard data={payload} />;
+      }
+      case 'getRestaurantMenu': {
+        if (!payload || !payload.restaurant || !Array.isArray(payload.sections)) {
+          return <div className="text-xs text-red-500">Unable to load restaurant menu.</div>;
+        }
+        return <RestaurantMenuCard data={payload} />;
+      }
+      case 'searchMenuItems':
+      case 'findFoodItem': {
+        if (!payload || !Array.isArray(payload.results)) {
+          return <div className="text-xs text-red-500">Unable to load menu item search results.</div>;
+        }
+        return <MenuItemSpotlightCard data={payload} />;
+      }
+      case 'findRestaurantsByType': {
+        if (!payload || !Array.isArray(payload.restaurants)) {
+          return <div className="text-xs text-red-500">Unable to load restaurant search results.</div>;
+        }
+        return <RestaurantSearchCard data={payload} />;
+      }
+      case 'addItemToCart':
+      case 'quickAddToCart': {
+        if (!payload || payload.success === false) {
+          return <div className="text-xs text-red-500">{payload?.message ?? 'Unable to add item to cart.'}</div>;
+        }
+        return <ShoppingCartCard data={payload} />;
+      }
+      case 'viewCart':
+      case 'quickViewCart': {
+        if (!payload || payload.success === false) {
+          return <div className="text-xs text-red-500">{payload?.message ?? 'Could not load the cart.'}</div>;
+        }
+        const cart = payload.cart;
+        if (!cart || !Array.isArray(cart.items) || cart.items.length === 0) {
+          return <div className="text-xs text-slate-500">Your cart is empty.</div>;
+        }
+        return <ShoppingCartCard data={payload} />;
+      }
+      case 'submitCartOrder':
+      case 'quickCheckout': {
+        if (!payload || payload.success === false) {
+          return <div className="text-xs text-red-500">{payload?.message ?? 'Unable to submit order.'}</div>;
+        }
+        return <OrderConfirmationCard data={payload} />;
+      }
+      case 'fetchMenuItemImage':
+      case 'fetchItemImage': {
+        if (!payload || payload.success === false) {
+          return <div className="text-xs text-red-500">{payload?.message ?? 'Unable to load image.'}</div>;
+        }
+        return <FoodImagePreviewCard data={payload} />;
+      }
+      default:
+        console.log('❓ Unknown tool:', toolName);
+        return null;
+    }
+  }
 
   // Add voice transcription functionality
   const {
@@ -72,125 +180,118 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
         timestamp: new Date().toISOString()
       }));
       room.localParticipant.publishData(data);
+    }
+    
+    // Option A: Parse streaming SSE from /api/voice-chat for multimodal UX
+    try {
+      const response = await fetch('/api/voice-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{
+            role: 'user',
+            parts: [{ type: 'text', text: message }]
+          }]
+        })
+      });
       
-      // Simulate agent response (same logic as clicking prompts)
-      setTimeout(() => {
-        const response = generateAgentResponse(message);
-        setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+      if (response.ok && response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let accumulatedText = '';
+        let toolCalls = new Map(); // Track tool names by callId
         
-        // Speak the response aloud (same as AI SDK)
-        if (!isAssistantMuted) {
-          speak('agent-response', response);
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                console.log('LiveKit SSE data:', data.type, data); // Debug log
+                
+                // Track tool names from tool-input-available
+                if (data.type === 'tool-input-available') {
+                  toolCalls.set(data.toolCallId, {
+                    toolName: data.toolName,
+                    input: data.input
+                  });
+                }
+                
+                // Handle text streaming
+                if (data.type === 'text-delta') {
+                  accumulatedText += data.textDelta;
+                  // Update current message with accumulated text
+                  setMessages(prev => {
+                    const newMessages = [...prev];
+                    const lastMessage = newMessages[newMessages.length - 1];
+                    if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.toolName) {
+                      lastMessage.content = accumulatedText;
+                    } else if (accumulatedText.trim()) {
+                      newMessages.push({ role: 'assistant', content: accumulatedText });
+                    }
+                    return newMessages;
+                  });
+                }
+                
+                // Handle tool results - match with stored tool names
+                if (data.type === 'tool-output-available') {
+                  const toolInfo = toolCalls.get(data.toolCallId);
+                  if (toolInfo) {
+                    const toolResult = data.output;
+                    let parsedResult;
+                    try {
+                      parsedResult = JSON.parse(toolResult);
+                    } catch (e) {
+                      console.error('Error parsing tool result:', e);
+                      continue;
+                    }
+                    
+                    console.log('Adding tool result card:', toolInfo.toolName, parsedResult);
+                    const speechText = parsedResult.speechSummary || parsedResult.message || 'Here are your results:';
+                    
+                    // Add to accumulated text for speech synthesis
+                    if (speechText) {
+                      accumulatedText += (accumulatedText ? ' ' : '') + speechText;
+                    }
+                    
+                    setMessages(prev => [...prev, {
+                      role: 'assistant',
+                      content: speechText,
+                      toolName: toolInfo.toolName,
+                      toolResult: parsedResult
+                    }]);
+                  }
+                }
+              } catch (parseError) {
+                console.error('Error parsing SSE line:', parseError, line);
+              }
+            }
+          }
         }
-      }, 1000);
+        
+        // Speak the final accumulated text
+        if (accumulatedText && !isAssistantMuted) {
+          speak('agent-response', accumulatedText);
+        }
+      }
+    } catch (error) {
+      console.error('Error calling voice-chat API:', error);
+      const fallbackResponse = generateFallbackResponse(message);
+      setMessages(prev => [...prev, { role: 'assistant', content: fallbackResponse }]);
+      
+      if (!isAssistantMuted) {
+        speak('agent-response', fallbackResponse);
+      }
     }
   };
 
-  const generateAgentResponse = (message: string) => {
-    const lowerMessage = message.toLowerCase();
-    
-    // Handle checkout requests - properly process the order
-    if (lowerMessage.includes('checkout') || 
-        lowerMessage.includes('ready to check') || 
-        lowerMessage.includes('place order') || 
-        lowerMessage.includes('place the order') ||
-        lowerMessage.includes('proceed to place') ||
-        lowerMessage.includes('lets proceed') ||
-        lowerMessage.includes('complete order') ||
-        lowerMessage.includes('finish order') ||
-        lowerMessage.includes('submit order')) {
-      // Clear cart after successful order
-      setCartItems([]);
-      return 'Excellent! I\'m processing your order for the Tropical Coconut Cheesecake from Island Breeze Caribbean. Total: $9.95 plus delivery. Your order should arrive in about 30-35 minutes. Thank you for choosing our voice concierge!';
-    }
-    
-    // Cart addition responses  
-    if (((lowerMessage.includes('yes') || lowerMessage.includes('add') || lowerMessage.includes('lets add')) && (lowerMessage.includes('cart') || lowerMessage.includes('card') || lowerMessage.includes('order'))) ||
-        (lowerMessage.includes('add') && lowerMessage.includes('island breeze')) ||
-        (lowerMessage.includes('lets') && lowerMessage.includes('add') && lowerMessage.includes('cheesecake'))) {
-      // Check if item is already in cart to prevent duplicates
-      const itemExists = cartItems.some(item => item.name === 'Tropical Coconut Cheesecake');
-      if (!itemExists) {
-        setCartItems(prev => [...prev, { 
-          name: 'Tropical Coconut Cheesecake', 
-          price: '$9.95', 
-          restaurant: 'Island Breeze Caribbean' 
-        }]);
-        return 'Perfect! I\'ve added the Tropical Coconut Cheesecake from Island Breeze Caribbean to your cart. Your cart total is now $9.95. Would you like to add anything else or are you ready to checkout?';
-      } else {
-        return 'The Tropical Coconut Cheesecake is already in your cart! Would you like to add anything else or are you ready to checkout?';
-      }
-    } 
-    
-    // Handle image requests FIRST (before cheesecake logic catches everything)
-    if (lowerMessage.includes('show me') || 
-        lowerMessage.includes('show me what') ||
-        (lowerMessage.includes('show') && (lowerMessage.includes('picture') || lowerMessage.includes('image') || lowerMessage.includes('it to me') || lowerMessage.includes('what it looks'))) ||
-        lowerMessage.includes('see what') || 
-        lowerMessage.includes('looks like') ||
-        (lowerMessage.includes('what') && lowerMessage.includes('looks like')) ||
-        lowerMessage.includes('from island breeze') && lowerMessage.includes('look')) {
-      // Delay image display so it appears after the message
-      setTimeout(() => {
-        setShowItemImage('Tropical Coconut Cheesecake - Coconut flakes, lime zest, mango puree. No chocolate!');
-      }, 500);
-      return 'I\'d love to show you what that delicious Tropical Coconut Cheesecake looks like! I\'ve displayed a preview above. It\'s a beautiful tropical dessert with coconut flakes, lime zest, and mango puree - completely chocolate-free. Would you like me to add it to your cart?';
-    }
-    
-    // Enhanced cheesecake filtering - detect "no chocolate" requests
-    if (lowerMessage.includes('cheesecake')) {
-      const needsNoChocolate = lowerMessage.includes('no chocolate') || 
-                               lowerMessage.includes('without chocolate') || 
-                               lowerMessage.includes('without the chocolate') ||
-                               lowerMessage.includes('but without') ||
-                               lowerMessage.includes('does not have chocolate') ||
-                               lowerMessage.includes('does not have any chocolate') ||  // fix for "any chocolate"
-                               lowerMessage.includes('doesn\'t have chocolate') ||
-                               lowerMessage.includes('doesn\'t have any chocolate') ||
-                               lowerMessage.includes('doesnt have chocolate') ||  // no apostrophe
-                               lowerMessage.includes('doesnt have any chocolate') ||  
-                               lowerMessage.includes('that doesnt have') ||
-                               lowerMessage.includes('that doesn\'t have') ||
-                               lowerMessage.includes('help me find') && lowerMessage.includes('no chocolate') ||
-                               lowerMessage.includes('kill me make sure') || 
-                               lowerMessage.includes('make sure it doesn\'t');
-      
-      if (needsNoChocolate) {
-        // Only offer the no-chocolate option
-        return 'Perfect! I found exactly what you need: Island Breeze Caribbean has a Tropical Coconut Cheesecake ($9.95) with NO chocolate - it features coconut, lime zest, and mango puree. This is chocolate-free and sounds perfect for you. Should I add it to your cart?';
-      } else {
-        // Offer both options but highlight the distinction
-        return 'Great choice! I have two excellent cheesecake options: Island Breeze Caribbean offers a Tropical Coconut Cheesecake ($9.95) with no chocolate - it has coconut, lime zest, and mango puree. Harvest & Hearth Kitchen has a Classic New York Cheesecake ($8.95) with chocolate drizzle. Which sounds appealing to you?';
-      }
-    }
-    
-    // Thai food responses
-    if (lowerMessage.includes('thai food') || lowerMessage.includes('thai')) {
-      return 'Great choice! I found Noodle Express with authentic Thai dishes like Pad Thai ($14.95) and Green Curry ($16.95). Their tom yum soup is also excellent. Would you like me to show you their full menu?';
-    } 
-    
-    // Vegetarian responses  
-    if (lowerMessage.includes('vegetarian') || lowerMessage.includes('veggie')) {
-      return 'Perfect! I have several great vegetarian options. Green Garden Bowls specializes in plant-based meals with power bowls starting at $12.95. They also have fresh salads and protein smoothies. Would you like to explore their menu?';
-    } 
-    
-    // Island Breeze specific 
-    if (lowerMessage.includes('island breeze')) {
-      return 'Island Breeze Caribbean is wonderful! Their specialties include Coconut Shrimp ($12.50), Jerk Chicken ($18.95), and Grilled Mahi Mahi ($24.95). Plus that famous chocolate-free Tropical Coconut Cheesecake. What sounds appealing to you?';
-    } 
-    
-    // General food discovery
-    if (lowerMessage.includes('find me') || lowerMessage.includes('lunch') || lowerMessage.includes('dinner') || lowerMessage.includes('eat')) {
-      return 'Hello! I\'m your voice-powered food concierge. I can help you discover restaurants, explore menus, and place orders. What are you craving today?';
-    } 
-    
-    // Greeting responses
-    if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey')) {
-      return 'Hello! I\'m your voice-powered food concierge. I can help you discover restaurants, explore menus, and place orders. What are you craving today?';
-    } 
-    
-    // Default response with better guidance
-    return `I heard you say \"${message}\". I can help you discover restaurants, explore menus, and place orders. Try asking about Thai food, vegetarian options, or our cheesecake demo scenario - just speak naturally!`;
+  const generateFallbackResponse = (message: string) => {
+    return 'I\'m having trouble connecting to the restaurant system right now. Please try again in a moment!';
   };
 
   const connectToRoom = async () => {
@@ -250,53 +351,16 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
     }
   };
 
-  const handleSamplePrompt = (prompt: string) => {
+  const handleSamplePrompt = async (prompt: string) => {
     if (!isConnected) {
-      connectToRoom();
+      await connectToRoom();
+      // Give connection time to establish before creating the chat experience
+      setTimeout(() => handleVoiceMessage(prompt), 1000);
       return;
     }
     
-    // Add user message to chat
-    setMessages(prev => [...prev, { role: 'user', content: prompt }]);
-    
-    // Send message to LiveKit agent (simple data message for now)
-    if (room) {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(JSON.stringify({ 
-        type: 'user_message', 
-        content: prompt,
-        timestamp: new Date().toISOString()
-      }));
-      room.localParticipant.publishData(data);
-      
-      // Simulate agent response for demo (in production, this comes via WebRTC)
-      setTimeout(() => {
-        let response = '';
-        const lowerPrompt = prompt.toLowerCase();
-        
-        if (lowerPrompt.includes('thai food')) {
-          response = 'Great choice! I found Noodle Express with authentic Thai dishes like Pad Thai ($14.95) and Green Curry ($16.95). Their tom yum soup is also excellent. Would you like me to show you their full menu?';
-        } else if (lowerPrompt.includes('vegetarian')) {
-          response = 'Perfect! I have several great vegetarian options. Green Garden Bowls specializes in plant-based meals with power bowls starting at $12.95. They also have fresh salads and protein smoothies. Would you like to explore their menu?';
-        } else if (lowerPrompt.includes('cheesecake')) {
-          if (lowerPrompt.includes('no chocolate') || lowerPrompt.includes('without chocolate')) {
-            response = 'Excellent choice! Island Breeze Caribbean has a fantastic Tropical Coconut Cheesecake ($9.95) with NO chocolate - it features coconut, lime zest, and mango puree. This is perfect for someone who wants to avoid chocolate. Should I add it to your cart?';
-          } else {
-            response = 'Great choice! I have two excellent cheesecake options: Island Breeze Caribbean offers a Tropical Coconut Cheesecake ($9.95) with no chocolate - it has coconut, lime zest, and mango puree. Harvest & Hearth Kitchen has a Classic New York Cheesecake ($8.95) with chocolate drizzle. Which sounds appealing to you?';
-          }
-        } else if (lowerPrompt.includes('island breeze')) {
-          response = 'Island Breeze Caribbean is wonderful! Their specialties include Coconut Shrimp ($12.50), Jerk Chicken ($18.95), and Grilled Mahi Mahi ($24.95). Plus that famous chocolate-free Tropical Coconut Cheesecake. What sounds appealing to you?';
-        } else if (lowerPrompt.includes('dessert') || lowerPrompt.includes('sweet')) {
-          response = 'For desserts, I have some great options! Island Breeze Caribbean has a Tropical Coconut Cheesecake ($9.95) with no chocolate, and Harvest & Hearth Kitchen has a Classic New York Cheesecake ($8.95) with chocolate drizzle. Both restaurants also have other sweet treats available.';
-        } else if (lowerPrompt.includes('order') || lowerPrompt.includes('want') || lowerPrompt.includes('get me')) {
-          response = 'I\'d be happy to help you order! I can search our 7 restaurants by cuisine type, dietary preferences, or specific dishes. What are you in the mood for today?';
-        } else {
-          response = `I understand you're interested in "${prompt}". I can help you discover restaurants, explore menus, and place orders. I have access to 7 restaurants with full menus. Try asking about specific cuisines like Thai food, vegetarian options, or our cheesecake demo scenario!`;
-        }
-        
-        setMessages(prev => [...prev, { role: 'assistant', content: response }]);
-      }, 1000);
-    }
+    // Handle the voice message using same method as voice input
+    await handleVoiceMessage(prompt);
   };
 
   useEffect(() => {
@@ -451,107 +515,23 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
               </div>
             ) : (
               <div className="space-y-6">
-                {/* Cart Display */}
-                {cartItems.length > 0 && (
-                  <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
-                    <h3 className="font-semibold text-emerald-900 mb-2 text-sm">🛒 Your Cart</h3>
-                    {cartItems.map((item, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-sm">
-                        <div>
-                          <div className="font-medium text-emerald-900">{item.name}</div>
-                          <div className="text-xs text-emerald-600">{item.restaurant}</div>
-                        </div>
-                        <div className="font-semibold text-emerald-900">{item.price}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Image Display */}
-                {showItemImage && (
-                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
-                    <h3 className="font-semibold text-blue-900 mb-3 text-sm">📸 Item Preview</h3>
-                    <div className="w-full h-32 bg-gradient-to-br from-orange-100 to-yellow-100 rounded-xl flex items-center justify-center border border-orange-200">
-                      <div className="text-center">
-                        <div className="text-2xl mb-2">🥥🍰</div>
-                        <div className="text-xs font-medium text-orange-800">Tropical Coconut Cheesecake</div>
-                        <div className="text-xs text-orange-600">No Chocolate • Coconut • Lime • Mango</div>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => setShowItemImage(null)}
-                      className="mt-2 text-xs text-blue-600 hover:text-blue-800"
-                    >
-                      Close Preview
-                    </button>
-                  </div>
-                )}
-
-                {/* Cart Display */}
-                {cartItems.length > 0 && (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4">
-                    <h3 className="font-semibold text-emerald-800 text-sm mb-2">Your Cart</h3>
-                    {cartItems.map((item, index) => (
-                      <div key={index} className="flex justify-between items-center text-xs text-emerald-700">
-                        <div>
-                          <div className="font-medium">{item.name}</div>
-                          <div className="text-emerald-600">{item.restaurant}</div>
-                        </div>
-                        <div className="font-semibold">{item.price}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Item Image Placeholder */}
-                {showItemImage && (
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-16 h-16 bg-gradient-to-br from-orange-200 to-yellow-200 rounded-xl flex items-center justify-center">
-                        <span className="text-2xl">🥥</span>
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-slate-800 text-sm">Item Preview</h3>
-                        <p className="text-xs text-slate-600">{showItemImage}</p>
-                        <button 
-                          onClick={() => setShowItemImage(null)}
-                          className="text-xs text-slate-400 hover:text-slate-600 mt-1"
-                        >
-                          Hide preview
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 {messages.map((message, index) => (
-                  <div
-                    key={index}
-                    className={`flex ${
-                      message.role === 'user' ? 'justify-end' : 'justify-start'
-                    }`}
-                  >
-                    <div className="flex max-w-md gap-3">
-                      {message.role === 'assistant' && (
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100">
-                          <span className="text-sm">🎤</span>
-                        </div>
-                      )}
-                      <div
-                        className={`rounded-2xl px-4 py-3 text-sm ${
-                          message.role === 'user'
-                            ? 'bg-slate-200 text-slate-900'
-                            : 'bg-white border border-slate-200 text-slate-900 shadow-sm'
-                        }`}
-                      >
-                        {message.content}
-                      </div>
-                      {message.role === 'user' && (
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200">
-                          <span className="text-sm">👤</span>
-                        </div>
-                      )}
+                  <div key={index} className="space-y-2">
+                    <div className={`text-xs uppercase tracking-[0.35em] ${
+                      message.role === 'user' ? 'text-emerald-600' : 'text-slate-500'
+                    }`}>
+                      {message.role === 'user' ? 'You' : 'Voice Concierge'}
                     </div>
+                    <div className="text-sm leading-relaxed text-slate-700">
+                      {message.content}
+                    </div>
+                    
+                    {/* Render tool card if this message has a tool result */}
+                    {message.toolName && message.toolResult && (
+                      <div className="mt-4">
+                        {renderToolOutput(message.toolName, message.toolResult)}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -590,6 +570,14 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
               <strong>Try saying:</strong> "I want cheesecake for my wife, no chocolate" to test the natural conversation flow!
             </p>
           </div>
+        </section>
+
+        {/* Debug Panel - positioned like AI SDK */}
+        <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <DebugPanel 
+            toolExecutions={debugExecutions} 
+            isProduction={process.env.NODE_ENV === 'production'}
+          />
         </section>
       </main>
 
