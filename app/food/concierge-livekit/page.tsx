@@ -122,6 +122,19 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
       }
     } 
     
+    // Handle image requests FIRST (before cheesecake logic catches everything)
+    if (lowerMessage.includes('show me') || 
+        lowerMessage.includes('show me what') ||
+        (lowerMessage.includes('show') && (lowerMessage.includes('picture') || lowerMessage.includes('image') || lowerMessage.includes('it to me') || lowerMessage.includes('what it looks'))) ||
+        lowerMessage.includes('see what') || 
+        lowerMessage.includes('looks like') ||
+        (lowerMessage.includes('what') && lowerMessage.includes('looks like')) ||
+        lowerMessage.includes('from island breeze') && lowerMessage.includes('look')) {
+      // Show visual image placeholder
+      setShowItemImage('Tropical Coconut Cheesecake - Coconut flakes, lime zest, mango puree. No chocolate!');
+      return 'I\'d love to show you what that delicious Tropical Coconut Cheesecake looks like! I\'ve displayed a preview above. It\'s a beautiful tropical dessert with coconut flakes, lime zest, and mango puree - completely chocolate-free. Would you like me to add it to your cart?';
+    }
+    
     // Enhanced cheesecake filtering - detect "no chocolate" requests
     if (lowerMessage.includes('cheesecake')) {
       const needsNoChocolate = lowerMessage.includes('no chocolate') || 
@@ -144,19 +157,6 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
         // Offer both options but highlight the distinction
         return 'Great choice! I have two excellent cheesecake options: Island Breeze Caribbean offers a Tropical Coconut Cheesecake ($9.95) with no chocolate - it has coconut, lime zest, and mango puree. Harvest & Hearth Kitchen has a Classic New York Cheesecake ($8.95) with chocolate drizzle. Which sounds appealing to you?';
       }
-    }
-    
-    // Handle image requests with helpful explanation
-    if (lowerMessage.includes('show me') || 
-        lowerMessage.includes('show me what') ||
-        (lowerMessage.includes('show') && (lowerMessage.includes('picture') || lowerMessage.includes('image') || lowerMessage.includes('it to me') || lowerMessage.includes('what it looks'))) ||
-        lowerMessage.includes('see what') || 
-        lowerMessage.includes('looks like') ||
-        (lowerMessage.includes('what') && lowerMessage.includes('looks like')) ||
-        lowerMessage.includes('from island breeze') && lowerMessage.includes('look')) {
-      // Show visual image placeholder
-      setShowItemImage('Tropical Coconut Cheesecake - Coconut flakes, lime zest, mango puree. No chocolate!');
-      return 'I\'d love to show you what that delicious Tropical Coconut Cheesecake looks like! I\'ve displayed a preview above. It\'s a beautiful tropical dessert with coconut flakes, lime zest, and mango puree - completely chocolate-free. Would you like me to add it to your cart?';
     }
     
     // Thai food responses
