@@ -20,6 +20,8 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const [cartItems, setCartItems] = useState<Array<{ name: string; price: string; restaurant: string }>>([]);
+  const [showItemImage, setShowItemImage] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -87,35 +89,71 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
   const generateAgentResponse = (message: string) => {
     const lowerMessage = message.toLowerCase();
     
-    // Cart-related responses
-    if (lowerMessage.includes('add') && (lowerMessage.includes('cart') || lowerMessage.includes('order'))) {
+    // Handle checkout requests - properly process the order
+    if (lowerMessage.includes('checkout') || lowerMessage.includes('ready to check') || lowerMessage.includes('place order') || lowerMessage.includes('complete order')) {
+      // Clear cart after successful order
+      setCartItems([]);
+      return 'Excellent! I\'m processing your order for the Tropical Coconut Cheesecake from Island Breeze Caribbean. Total: $9.95 plus delivery. Your order should arrive in about 30-35 minutes. Thank you for choosing our voice concierge!';
+    }
+    
+    // Cart addition responses  
+    if ((lowerMessage.includes('yes') || lowerMessage.includes('add')) && (lowerMessage.includes('cart') || lowerMessage.includes('order'))) {
+      // Add item to visual cart
+      setCartItems(prev => [...prev, { 
+        name: 'Tropical Coconut Cheesecake', 
+        price: '$9.95', 
+        restaurant: 'Island Breeze Caribbean' 
+      }]);
       return 'Perfect! I\'ve added the Tropical Coconut Cheesecake from Island Breeze Caribbean to your cart. Your cart total is now $9.95. Would you like to add anything else or are you ready to checkout?';
-    } else if (lowerMessage.includes('yes') && (lowerMessage.includes('add') || lowerMessage.includes('cart'))) {
-      return 'Great! I\'ve added the Tropical Coconut Cheesecake to your cart for $9.95. The no-chocolate version is perfect for your wife. Is there anything else you\'d like to order?';
-    } else if (lowerMessage.includes('checkout') || lowerMessage.includes('place order') || lowerMessage.includes('complete order')) {
-      return 'Excellent! I\'m processing your order for the Tropical Coconut Cheesecake from Island Breeze Caribbean. Total: $9.95 plus delivery. Your order should arrive in about 30-35 minutes. Thank you!';
     } 
     
-    // Food discovery responses
-    else if (lowerMessage.includes('thai food') || lowerMessage.includes('thai')) {
-      return 'Great choice! I found Noodle Express with authentic Thai dishes like Pad Thai ($14.95) and Green Curry ($16.95). Their tom yum soup is also excellent. Would you like me to show you their full menu?';
-    } else if (lowerMessage.includes('vegetarian') || lowerMessage.includes('veggie')) {
-      return 'Perfect! I have several great vegetarian options. Green Garden Bowls specializes in plant-based meals with power bowls starting at $12.95. They also have fresh salads and protein smoothies. Would you like to explore their menu?';
-    } else if (lowerMessage.includes('cheesecake')) {
-      if (lowerMessage.includes('no chocolate') || lowerMessage.includes('without chocolate')) {
-        return 'Excellent choice! Island Breeze Caribbean has a fantastic Tropical Coconut Cheesecake ($9.95) with NO chocolate - it features coconut, lime zest, and mango puree. This is perfect for someone who wants to avoid chocolate. Should I add it to your cart?';
+    // Enhanced cheesecake filtering - detect "no chocolate" requests
+    if (lowerMessage.includes('cheesecake')) {
+      const needsNoChocolate = lowerMessage.includes('no chocolate') || lowerMessage.includes('without chocolate') || lowerMessage.includes('kill me make sure') || lowerMessage.includes('make sure it doesn\'t');
+      
+      if (needsNoChocolate) {
+        // Only offer the no-chocolate option
+        return 'Perfect! I found exactly what you need: Island Breeze Caribbean has a Tropical Coconut Cheesecake ($9.95) with NO chocolate - it features coconut, lime zest, and mango puree. This is chocolate-free and sounds perfect for you. Should I add it to your cart?';
       } else {
+        // Offer both options but highlight the distinction
         return 'Great choice! I have two excellent cheesecake options: Island Breeze Caribbean offers a Tropical Coconut Cheesecake ($9.95) with no chocolate - it has coconut, lime zest, and mango puree. Harvest & Hearth Kitchen has a Classic New York Cheesecake ($8.95) with chocolate drizzle. Which sounds appealing to you?';
       }
-    } else if (lowerMessage.includes('island breeze')) {
-      return 'Island Breeze Caribbean is wonderful! Their specialties include Coconut Shrimp ($12.50), Jerk Chicken ($18.95), and Grilled Mahi Mahi ($24.95). Plus that famous chocolate-free Tropical Coconut Cheesecake. What sounds appealing to you?';
-    } else if (lowerMessage.includes('find me') || lowerMessage.includes('lunch') || lowerMessage.includes('dinner')) {
-      return 'I\'d be happy to help you find something! I have 7 great restaurants available including Caribbean, Thai, Indian, and healthy options. What type of cuisine are you in the mood for, or do you have any dietary preferences?';
-    } else if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey')) {
-      return 'Hello! I\'m your voice-powered food concierge. I can help you discover restaurants, explore menus, and place orders. What are you craving today?';
-    } else {
-      return `I heard you say "${message}". I can help you discover restaurants, explore menus, and place orders. Try asking about Thai food, vegetarian options, or our cheesecake demo scenario - just speak naturally!`;
     }
+    
+    // Handle image requests with helpful explanation
+    if (lowerMessage.includes('show') && (lowerMessage.includes('picture') || lowerMessage.includes('image'))) {
+      // Show visual image placeholder
+      setShowItemImage('Tropical Coconut Cheesecake - Coconut flakes, lime zest, mango puree. No chocolate!');
+      return 'I\'d love to show you a picture of that delicious Tropical Coconut Cheesecake! Unfortunately, I can\'t display images in voice mode, but I can tell you it\'s a beautiful tropical dessert with coconut flakes, lime zest, and mango puree - completely chocolate-free. Would you like me to add it to your cart?';
+    }
+    
+    // Thai food responses
+    if (lowerMessage.includes('thai food') || lowerMessage.includes('thai')) {
+      return 'Great choice! I found Noodle Express with authentic Thai dishes like Pad Thai ($14.95) and Green Curry ($16.95). Their tom yum soup is also excellent. Would you like me to show you their full menu?';
+    } 
+    
+    // Vegetarian responses  
+    if (lowerMessage.includes('vegetarian') || lowerMessage.includes('veggie')) {
+      return 'Perfect! I have several great vegetarian options. Green Garden Bowls specializes in plant-based meals with power bowls starting at $12.95. They also have fresh salads and protein smoothies. Would you like to explore their menu?';
+    } 
+    
+    // Island Breeze specific 
+    if (lowerMessage.includes('island breeze')) {
+      return 'Island Breeze Caribbean is wonderful! Their specialties include Coconut Shrimp ($12.50), Jerk Chicken ($18.95), and Grilled Mahi Mahi ($24.95). Plus that famous chocolate-free Tropical Coconut Cheesecake. What sounds appealing to you?';
+    } 
+    
+    // General food discovery
+    if (lowerMessage.includes('find me') || lowerMessage.includes('lunch') || lowerMessage.includes('dinner') || lowerMessage.includes('eat')) {
+      return 'Hello! I\'m your voice-powered food concierge. I can help you discover restaurants, explore menus, and place orders. What are you craving today?';
+    } 
+    
+    // Greeting responses
+    if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey')) {
+      return 'Hello! I\'m your voice-powered food concierge. I can help you discover restaurants, explore menus, and place orders. What are you craving today?';
+    } 
+    
+    // Default response with better guidance
+    return `I heard you say \"${message}\". I can help you discover restaurants, explore menus, and place orders. Try asking about Thai food, vegetarian options, or our cheesecake demo scenario - just speak naturally!`;
   };
 
   const connectToRoom = async () => {
@@ -376,6 +414,79 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
               </div>
             ) : (
               <div className="space-y-6">
+                {/* Cart Display */}
+                {cartItems.length > 0 && (
+                  <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
+                    <h3 className="font-semibold text-emerald-900 mb-2 text-sm">🛒 Your Cart</h3>
+                    {cartItems.map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-sm">
+                        <div>
+                          <div className="font-medium text-emerald-900">{item.name}</div>
+                          <div className="text-xs text-emerald-600">{item.restaurant}</div>
+                        </div>
+                        <div className="font-semibold text-emerald-900">{item.price}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Image Display */}
+                {showItemImage && (
+                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
+                    <h3 className="font-semibold text-blue-900 mb-3 text-sm">📸 Item Preview</h3>
+                    <div className="w-full h-32 bg-gradient-to-br from-orange-100 to-yellow-100 rounded-xl flex items-center justify-center border border-orange-200">
+                      <div className="text-center">
+                        <div className="text-2xl mb-2">🥥🍰</div>
+                        <div className="text-xs font-medium text-orange-800">Tropical Coconut Cheesecake</div>
+                        <div className="text-xs text-orange-600">No Chocolate • Coconut • Lime • Mango</div>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setShowItemImage(null)}
+                      className="mt-2 text-xs text-blue-600 hover:text-blue-800"
+                    >
+                      Close Preview
+                    </button>
+                  </div>
+                )}
+
+                {/* Cart Display */}
+                {cartItems.length > 0 && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4">
+                    <h3 className="font-semibold text-emerald-800 text-sm mb-2">Your Cart</h3>
+                    {cartItems.map((item, index) => (
+                      <div key={index} className="flex justify-between items-center text-xs text-emerald-700">
+                        <div>
+                          <div className="font-medium">{item.name}</div>
+                          <div className="text-emerald-600">{item.restaurant}</div>
+                        </div>
+                        <div className="font-semibold">{item.price}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Item Image Placeholder */}
+                {showItemImage && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 bg-gradient-to-br from-orange-200 to-yellow-200 rounded-xl flex items-center justify-center">
+                        <span className="text-2xl">🥥</span>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-slate-800 text-sm">Item Preview</h3>
+                        <p className="text-xs text-slate-600">{showItemImage}</p>
+                        <button 
+                          onClick={() => setShowItemImage(null)}
+                          className="text-xs text-slate-400 hover:text-slate-600 mt-1"
+                        >
+                          Hide preview
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {messages.map((message, index) => (
                   <div
                     key={index}
