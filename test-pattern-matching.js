@@ -47,8 +47,11 @@ function testGenerateAgentResponse(message) {
                              lowerMessage.includes('without the chocolate') ||
                              lowerMessage.includes('but without') ||
                              lowerMessage.includes('does not have chocolate') ||
+                             lowerMessage.includes('does not have any chocolate') ||  // fix for "any chocolate"
                              lowerMessage.includes('doesn\'t have chocolate') ||
+                             lowerMessage.includes('doesn\'t have any chocolate') ||
                              lowerMessage.includes('doesnt have chocolate') ||  // no apostrophe
+                             lowerMessage.includes('doesnt have any chocolate') ||  
                              lowerMessage.includes('that doesnt have') ||
                              lowerMessage.includes('that doesn\'t have') ||
                              lowerMessage.includes('help me find') && lowerMessage.includes('no chocolate') ||
@@ -75,6 +78,7 @@ const testCases = [
   
   // Failed examples from user testing
   'Can you help me find a cheesecake that doesn\'t have any chocolate?',
+  'Can you help me find a cheesecake that does not have any chocolate on it?',  // Latest failed case
   'Can you show me what the cheesecake looks like?',
   'Can you show me a picture of the cheesecake from Island Breeze?',
   
@@ -115,6 +119,11 @@ const problemCases = [
     input: 'Can you help me find a cheesecake that doesn\'t have any chocolate?',
     expected: 'CHEESECAKE',
     description: 'Should filter to no-chocolate option only'
+  },
+  {
+    input: 'Can you help me find a cheesecake that does not have any chocolate on it?',
+    expected: 'CHEESECAKE', 
+    description: 'Should filter to no-chocolate (with "any chocolate" pattern)'
   }
 ];
 

@@ -130,8 +130,10 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
         lowerMessage.includes('looks like') ||
         (lowerMessage.includes('what') && lowerMessage.includes('looks like')) ||
         lowerMessage.includes('from island breeze') && lowerMessage.includes('look')) {
-      // Show visual image placeholder
-      setShowItemImage('Tropical Coconut Cheesecake - Coconut flakes, lime zest, mango puree. No chocolate!');
+      // Delay image display so it appears after the message
+      setTimeout(() => {
+        setShowItemImage('Tropical Coconut Cheesecake - Coconut flakes, lime zest, mango puree. No chocolate!');
+      }, 500);
       return 'I\'d love to show you what that delicious Tropical Coconut Cheesecake looks like! I\'ve displayed a preview above. It\'s a beautiful tropical dessert with coconut flakes, lime zest, and mango puree - completely chocolate-free. Would you like me to add it to your cart?';
     }
     
@@ -142,8 +144,11 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
                                lowerMessage.includes('without the chocolate') ||
                                lowerMessage.includes('but without') ||
                                lowerMessage.includes('does not have chocolate') ||
+                               lowerMessage.includes('does not have any chocolate') ||  // fix for "any chocolate"
                                lowerMessage.includes('doesn\'t have chocolate') ||
+                               lowerMessage.includes('doesn\'t have any chocolate') ||
                                lowerMessage.includes('doesnt have chocolate') ||  // no apostrophe
+                               lowerMessage.includes('doesnt have any chocolate') ||  
                                lowerMessage.includes('that doesnt have') ||
                                lowerMessage.includes('that doesn\'t have') ||
                                lowerMessage.includes('help me find') && lowerMessage.includes('no chocolate') ||
