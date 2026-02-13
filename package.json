@@ -11,7 +11,12 @@
     "test-api": "node scripts/test-api.js",
     "verify-all": "npm run verify-migration && npm run test-api",
     "test:cards": "node scripts/test-ui-cards.js",
-    "test:cards:dev": "node scripts/test-ui-cards.js --dev"
+    "test:cards:dev": "node scripts/test-ui-cards.js --dev",
+    "test:pipelines": "node scripts/run-all-tests.js",
+    "test:ai-sdk": "node scripts/test-ai-sdk-end-to-end.js",
+    "test:ai-sdk:search": "node scripts/test-ai-sdk-orlando-search.js",
+    "test:ai-sdk:context": "node scripts/test-ai-sdk-get-context.js",
+    "test:livekit": "node scripts/test-livekit-regression.js"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.58",
