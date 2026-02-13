@@ -90,14 +90,24 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
     const lowerMessage = message.toLowerCase();
     
     // Handle checkout requests - properly process the order
-    if (lowerMessage.includes('checkout') || lowerMessage.includes('ready to check') || lowerMessage.includes('place order') || lowerMessage.includes('complete order')) {
+    if (lowerMessage.includes('checkout') || 
+        lowerMessage.includes('ready to check') || 
+        lowerMessage.includes('place order') || 
+        lowerMessage.includes('place the order') ||
+        lowerMessage.includes('proceed to place') ||
+        lowerMessage.includes('lets proceed') ||
+        lowerMessage.includes('complete order') ||
+        lowerMessage.includes('finish order') ||
+        lowerMessage.includes('submit order')) {
       // Clear cart after successful order
       setCartItems([]);
       return 'Excellent! I\'m processing your order for the Tropical Coconut Cheesecake from Island Breeze Caribbean. Total: $9.95 plus delivery. Your order should arrive in about 30-35 minutes. Thank you for choosing our voice concierge!';
     }
     
     // Cart addition responses  
-    if ((lowerMessage.includes('yes') || lowerMessage.includes('add')) && (lowerMessage.includes('cart') || lowerMessage.includes('order'))) {
+    if (((lowerMessage.includes('yes') || lowerMessage.includes('add') || lowerMessage.includes('lets add')) && (lowerMessage.includes('cart') || lowerMessage.includes('card') || lowerMessage.includes('order'))) ||
+        (lowerMessage.includes('add') && lowerMessage.includes('island breeze')) ||
+        (lowerMessage.includes('lets') && lowerMessage.includes('add') && lowerMessage.includes('cheesecake'))) {
       // Check if item is already in cart to prevent duplicates
       const itemExists = cartItems.some(item => item.name === 'Tropical Coconut Cheesecake');
       if (!itemExists) {
@@ -120,6 +130,10 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
                                lowerMessage.includes('but without') ||
                                lowerMessage.includes('does not have chocolate') ||
                                lowerMessage.includes('doesn\'t have chocolate') ||
+                               lowerMessage.includes('doesnt have chocolate') ||  // no apostrophe
+                               lowerMessage.includes('that doesnt have') ||
+                               lowerMessage.includes('that doesn\'t have') ||
+                               lowerMessage.includes('help me find') && lowerMessage.includes('no chocolate') ||
                                lowerMessage.includes('kill me make sure') || 
                                lowerMessage.includes('make sure it doesn\'t');
       
@@ -134,8 +148,12 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
     
     // Handle image requests with helpful explanation
     if (lowerMessage.includes('show me') || 
+        lowerMessage.includes('show me what') ||
         (lowerMessage.includes('show') && (lowerMessage.includes('picture') || lowerMessage.includes('image') || lowerMessage.includes('it to me') || lowerMessage.includes('what it looks'))) ||
-        lowerMessage.includes('see what') || lowerMessage.includes('looks like')) {
+        lowerMessage.includes('see what') || 
+        lowerMessage.includes('looks like') ||
+        (lowerMessage.includes('what') && lowerMessage.includes('looks like')) ||
+        lowerMessage.includes('from island breeze') && lowerMessage.includes('look')) {
       // Show visual image placeholder
       setShowItemImage('Tropical Coconut Cheesecake - Coconut flakes, lime zest, mango puree. No chocolate!');
       return 'I\'d love to show you what that delicious Tropical Coconut Cheesecake looks like! I\'ve displayed a preview above. It\'s a beautiful tropical dessert with coconut flakes, lime zest, and mango puree - completely chocolate-free. Would you like me to add it to your cart?';
