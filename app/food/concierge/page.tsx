@@ -880,11 +880,19 @@ export default function FoodCourtConcierge() {
               Food Court
             </Link>
             <nav className="hidden gap-6 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 md:flex">
-              <Link href="/" className="transition hover:text-slate-900">Home</Link>
-              <span className="text-slate-900">Concierge</span>
+              <span className="text-emerald-600">Concierge (AI-SDK)</span>
+              <Link href="/food/concierge-livekit" className="transition hover:text-slate-900">Concierge (LiveKit)</Link>
+              <Link href="/food/concierge-native" className="transition hover:text-slate-900">Concierge (LiveKit-Native)</Link>
+              <button
+                type="button"
+                onClick={openCartModal}
+                className="transition hover:text-slate-900"
+              >
+                Cart {totalCartItems > 0 && `(${totalCartItems})`}
+              </button>
             </nav>
           </div>
-          <div className="flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-4 text-xs md:hidden">
             <button
               type="button"
               onClick={openCartModal}

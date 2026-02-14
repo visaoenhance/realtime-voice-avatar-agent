@@ -1,0 +1,18 @@
+# LiveKit Native Food Concierge Agent Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core LiveKit Agents SDK
+livekit-agents>=1.0.0
+livekit-plugins-openai>=0.6.0
+livekit-plugins-silero>=0.6.0
+
+# Optional: Advanced STT/TTS providers (uncomment to use)
+# livekit-plugins-deepgram>=0.6.0
+# livekit-plugins-cartesia>=0.2.0
+# livekit-plugins-elevenlabs>=0.1.0
+
+# Database
+supabase>=2.0.0
+
+# Environment variables
+python-dotenv>=1.0.0

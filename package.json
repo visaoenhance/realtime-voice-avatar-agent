@@ -21,6 +21,8 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.58",
     "@ai-sdk/react": "^2.0.82",
+    "@livekit/components-react": "^2.9.19",
+    "@livekit/components-styles": "^1.2.0",
     "@mux/mux-player-react": "^3.8.0",
     "@supabase/supabase-js": "^2.78.0",
     "ai": "^5.0.82",
