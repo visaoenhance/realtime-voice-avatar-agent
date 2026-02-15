@@ -483,22 +483,28 @@ def get_voice_cart() -> Dict[str, Any]:
     global voice_cart
     if not voice_cart or not voice_cart.get("items"):
         return {
-            "id": "voice-cart-empty",
-            "restaurantId": None,
-            "restaurantName": None,
-            "status": "empty",
-            "subtotal": 0,
-            "deliveryFee": 0,
-            "total": 0,
-            "items": []
+            "success": True,
+            "cart": {
+                "id": "voice-cart-empty",
+                "restaurantId": None,
+                "restaurantName": None,
+                "status": "empty",
+                "subtotal": 0,
+                "deliveryFee": 0,
+                "total": 0,
+                "items": []
+            }
         }
-    return voice_cart
+    return {
+        "success": True,
+        "cart": voice_cart
+    }
 
 
 def add_to_voice_cart(item_name: str, restaurant_name: str = None, quantity: int = 1, additional_items: List[Dict] = None) -> Dict[str, Any]:
     """
     Add items to voice cart (in-memory)
-    Appends to existing cart if present, otherwise creates new cart
+    Merges items with the same name, otherwise appends
     Mirrors: voice-chat/tools.ts -> quickAddToCart
     """
     global voice_cart
@@ -517,26 +523,38 @@ def add_to_voice_cart(item_name: str, restaurant_name: str = None, quantity: int
         # Extract existing items 
         existing_items = voice_cart["items"].copy()
     
-    # Calculate the starting index for new items
-    starting_idx = len(existing_items)
-    
-    # Process new items and append to cart
-    for idx, item in enumerate(new_items_to_add):
-        item_id = f"item-{starting_idx + idx}"
-        line_price = base_price * item["quantity"]
+    # Process new items - merge if same name exists
+    for new_item in new_items_to_add:
+        item_name_to_add = new_item["itemName"]
+        qty_to_add = new_item["quantity"]
         
-        existing_items.append({
-            "id": item_id,
-            "menuItemId": f"menu-{starting_idx + idx}",
-            "name": item["itemName"],
-            "quantity": item["quantity"],
-            "basePrice": base_price,
-            "totalPrice": line_price,
-            "options": [],
-            "restaurant": {
-                "name": restaurant_name or (voice_cart.get("restaurantName") if voice_cart else "Restaurant")
-            }
-        })
+        # Look for existing item with same name (case-insensitive)
+        found = False
+        for existing_item in existing_items:
+            if existing_item["name"].lower() == item_name_to_add.lower():
+                # Merge quantities
+                existing_item["quantity"] += qty_to_add
+                existing_item["totalPrice"] = existing_item["basePrice"] * existing_item["quantity"]
+                found = True
+                break
+        
+        # If not found, add as new item
+        if not found:
+            item_id = f"item-{len(existing_items)}"
+            line_price = base_price * qty_to_add
+            
+            existing_items.append({
+                "id": item_id,
+                "menuItemId": f"menu-{len(existing_items)}",
+                "name": item_name_to_add,
+                "quantity": qty_to_add,
+                "basePrice": base_price,
+                "totalPrice": line_price,
+                "options": [],
+                "restaurant": {
+                    "name": restaurant_name or (voice_cart.get("restaurantName") if voice_cart else "Restaurant")
+                }
+            })
     
     # Recalculate totals for all items
     subtotal = sum(item["totalPrice"] for item in existing_items)
@@ -609,3 +627,153 @@ def checkout_cart() -> Dict[str, Any]:
         "total": order_summary["total"],
         "orderDetails": order_summary
     }
+
+
+def update_cart_item_quantity(item_name: str, new_quantity: int) -> Dict[str, Any]:
+    """
+    Update the quantity of an item in the cart by name.
+    If new_quantity is 0, removes the item.
+    If item doesn't exist, returns error.
+    """
+    global voice_cart
+    
+    if not voice_cart or not voice_cart.get("items"):
+        return {
+            "success": False,
+            "message": "Your cart is empty."
+        }
+    
+    # Find the item by name (case-insensitive)
+    item_name_lower = item_name.lower()
+    item_found = False
+    updated_items = []
+    
+    for item in voice_cart["items"]:
+        if item["name"].lower() == item_name_lower:
+            item_found = True
+            if new_quantity > 0:
+                # Update quantity
+                item["quantity"] = new_quantity
+                item["totalPrice"] = item["basePrice"] * new_quantity
+                updated_items.append(item)
+            # If new_quantity is 0, don't add to updated_items (remove it)
+        else:
+            updated_items.append(item)
+    
+    if not item_found:
+        return {
+            "success": False,
+            "message": f"Item '{item_name}' not found in cart."
+        }
+    
+    # Update cart with new items list
+    voice_cart["items"] = updated_items
+    
+    # Recalculate totals
+    if updated_items:
+        subtotal = sum(item["totalPrice"] for item in updated_items)
+        total = subtotal + voice_cart["deliveryFee"]
+        total_quantity = sum(item["quantity"] for item in updated_items)
+        
+        voice_cart["subtotal"] = subtotal
+        voice_cart["total"] = total
+        
+        action = "updated" if new_quantity > 0 else "removed"
+        return {
+            "success": True,
+            "message": f"{item_name} {action} successfully.",
+            "cart": voice_cart,
+            "subtotal": subtotal,
+            "total": total,
+            "itemCount": total_quantity
+        }
+    else:
+        # Cart is now empty
+        voice_cart = None
+        return {
+            "success": True,
+            "message": f"{item_name} removed. Your cart is now empty.",
+            "cart": None,
+            "subtotal": 0,
+            "total": 0,
+            "itemCount": 0
+        }
+
+
+def remove_from_cart(item_name: str, quantity_to_remove: int = None) -> Dict[str, Any]:
+    """
+    Remove items from cart by name.
+    If quantity_to_remove is specified, reduces quantity by that amount.
+    If quantity_to_remove is None or >= current quantity, removes item entirely.
+    """
+    global voice_cart
+    
+    if not voice_cart or not voice_cart.get("items"):
+        return {
+            "success": False,
+            "message": "Your cart is empty."
+        }
+    
+    # Find the item by name (case-insensitive)
+    item_name_lower = item_name.lower()
+    item_found = False
+    updated_items = []
+    removed_count = 0
+    
+    for item in voice_cart["items"]:
+        if item["name"].lower() == item_name_lower:
+            item_found = True
+            current_qty = item["quantity"]
+            
+            if quantity_to_remove is None or quantity_to_remove >= current_qty:
+                # Remove entire item
+                removed_count = current_qty
+                # Don't add to updated_items
+            else:
+                # Reduce quantity
+                new_qty = current_qty - quantity_to_remove
+                removed_count = quantity_to_remove
+                item["quantity"] = new_qty
+                item["totalPrice"] = item["basePrice"] * new_qty
+                updated_items.append(item)
+        else:
+            updated_items.append(item)
+    
+    if not item_found:
+        return {
+            "success": False,
+            "message": f"Item '{item_name}' not found in cart."
+        }
+    
+    # Update cart with new items list
+    voice_cart["items"] = updated_items
+    
+    # Recalculate totals
+    if updated_items:
+        subtotal = sum(item["totalPrice"] for item in updated_items)
+        total = subtotal + voice_cart["deliveryFee"]
+        total_quantity = sum(item["quantity"] for item in updated_items)
+        
+        voice_cart["subtotal"] = subtotal
+        voice_cart["total"] = total
+        
+        qty_msg = f"{removed_count} " if removed_count > 1 else ""
+        return {
+            "success": True,
+            "message": f"Removed {qty_msg}{item_name} from cart.",
+            "cart": voice_cart,
+            "subtotal": subtotal,
+            "total": total,
+            "itemCount": total_quantity
+        }
+    else:
+        # Cart is now empty
+        voice_cart = None
+        return {
+            "success": True,
+            "message": f"Removed {item_name}. Your cart is now empty.",
+            "cart": None,
+            "subtotal": 0,
+            "total": 0,
+            "itemCount": 0
+        }

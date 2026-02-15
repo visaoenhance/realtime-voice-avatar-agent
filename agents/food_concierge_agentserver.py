@@ -13,14 +13,16 @@ Following LiveKit's official drive-thru example patterns:
 Reference: /livekit-reference/agents/examples/drive-thru/agent.py
 Comparison: See /docs/LIVEKIT_REFERENCE_COMPARISON.md
 
-Tools (7 total, matching TypeScript):
+Tools (9 total, matching TypeScript):
 1. get_user_profile - Get user preferences  
 2. find_food_item - Search menu items
 3. find_restaurants_by_type - Search restaurants
 4. get_restaurant_menu - View full menu for a restaurant
 5. quick_view_cart - View current cart
 6. quick_add_to_cart - Add items to cart
-7. quick_checkout - Complete order
+7. remove_from_cart - Remove items from cart
+8. update_cart_quantity - Update item quantity
+9. quick_checkout - Complete order
 
 Usage:
   python food_concierge_agentserver.py dev
@@ -61,6 +63,8 @@ from database import (
     get_restaurant_menu,
     add_to_voice_cart,
     get_voice_cart,
+    remove_from_cart,
+    update_cart_item_quantity,
     checkout_cart,  # Note: it's checkout_cart, not checkout_voice_cart
     # get_restaurant_menu,  # Not available in database.py
 )
@@ -116,6 +120,8 @@ Available Tools:
 - get_restaurant_menu: View full menu for a specific restaurant by slug (e.g., "island-breeze-caribbean")
 - quick_view_cart: Show current cart contents
 - quick_add_to_cart: Add items to cart
+- remove_from_cart: Remove items from cart (e.g., "remove 2 cheesecakes")
+- update_cart_quantity: Change quantity of an item (e.g., set cheesecake to 1)
 - quick_checkout: Complete the order
 
 Examples:
@@ -124,6 +130,9 @@ Examples:
 - User: "Show me the full menu for Island Breeze" → get_restaurant_menu(restaurant_slug="island-breeze-caribbean")
 - User: "I want jerk chicken" → find_food_item(query="jerk chicken")
 - User: "Add pad thai to cart" → quick_add_to_cart(item_name="pad thai", quantity="1")
+- User: "Remove 2 cheesecakes" → remove_from_cart(item_name="Tropical Cheesecake", quantity_to_remove="2")
+- User: "Remove all butter chicken" → remove_from_cart(item_name="Butter Chicken")
+- User: "Change cheesecake to 1" → update_cart_quantity(item_name="Tropical Cheesecake", new_quantity="1")
 - User: "What's in my cart?" → quick_view_cart()
 - User: "Checkout" → quick_checkout()
 
@@ -149,6 +158,8 @@ class FoodConciergeAgent(Agent):
                 self.build_fetch_image_tool(),
                 self.build_view_cart_tool(),
                 self.build_add_to_cart_tool(),
+                self.build_remove_from_cart_tool(),
+                self.build_update_cart_quantity_tool(),
                 self.build_checkout_tool(),
             ],
         )
@@ -663,6 +674,129 @@ class FoodConciergeAgent(Agent):
                 raise ToolError(f"Failed to checkout: {str(e)}")
         
         return quick_checkout_tool
+    
+    def build_remove_from_cart_tool(self):
+        """Remove items from cart by name"""
+        
+        @function_tool
+        async def remove_from_cart_tool(
+            ctx: RunContext[UserState],
+            item_name: Annotated[str, Field(description="Name of the item to remove from cart")],
+            quantity_to_remove: Annotated[str, Field(description="Number of items to remove, or 'all' to remove entirely. Use 'all' if not specified.")] = "all",
+        ) -> str:
+            """
+            Remove items from cart by name.
+            Call this when user says:
+            - "Remove the cheesecake"
+            - "Take out 2 butter chicken"
+            - "Delete tropical cheesecake from cart"
+            
+            Args:
+                item_name: Name of the item to remove
+                quantity_to_remove: How many to remove ('all' or a number like '1', '2')
+            """
+            logger.info(f"🔧 Tool: remove_from_cart(item_name='{item_name}', quantity_to_remove='{quantity_to_remove}')")
+            
+            try:
+                # Parse quantity
+                if quantity_to_remove.lower() == "all":
+                    qty = None
+                else:
+                    try:
+                        qty = int(quantity_to_remove)
+                    except ValueError:
+                        qty = None
+                
+                result = remove_from_cart(item_name, quantity_to_remove=qty)
+                
+                # Send result to frontend for cart update
+                if ctx.userdata.local_participant:
+                    try:
+                        import json
+                        tool_data = {
+                            "type": "tool_call",
+                            "tool_name": "remove_from_cart",
+                            "result": result
+                        }
+                        await ctx.userdata.local_participant.publish_data(
+                            json.dumps(tool_data).encode(),
+                            reliable=True
+                        )
+                        logger.info(f"   📤 Sent cart update to frontend")
+                    except Exception as e:
+                        logger.error(f"   ⚠️ Failed to send to frontend: {e}")
+                else:
+                    logger.warning(f"   ⚠️ No local_participant, skipping data publish")
+                
+                if result.get('success'):
+                    return result.get('message', f"Removed {item_name} from cart.")
+                else:
+                    return result.get('message', f"Could not remove {item_name}.")
+            except Exception as e:
+                logger.error(f"   ❌ Error: {e}")
+                raise ToolError(f"Failed to remove from cart: {str(e)}")
+        
+        return remove_from_cart_tool
+    
+    def build_update_cart_quantity_tool(self):
+        """Update quantity of an item in cart"""
+        
+        @function_tool
+        async def update_cart_quantity_tool(
+            ctx: RunContext[UserState],
+            item_name: Annotated[str, Field(description="Name of the item to update")],
+            new_quantity: Annotated[str, Field(description="New quantity for this item (use '0' to remove)")],
+        ) -> str:
+            """
+            Update the quantity of an item to a specific number.
+            Call this when user says:
+            - "Change cheesecake to 1"
+            - "Set butter chicken quantity to 2"
+            - "Make it 3 pad thais"
+            
+            Args:
+                item_name: Name of the item
+                new_quantity: New quantity (0 removes the item)
+            """
+            logger.info(f"🔧 Tool: update_cart_quantity(item_name='{item_name}', new_quantity='{new_quantity}')")
+            
+            try:
+                # Parse quantity
+                try:
+                    qty = int(new_quantity)
+                except ValueError:
+                    return f"Invalid quantity: {new_quantity}. Please use a number."
+                
+                result = update_cart_item_quantity(item_name, new_quantity=qty)
+                
+                # Send result to frontend for cart update
+                if ctx.userdata.local_participant:
+                    try:
+                        import json
+                        tool_data = {
+                            "type": "tool_call",
+                            "tool_name": "update_cart_quantity",
+                            "result": result
+                        }
+                        await ctx.userdata.local_participant.publish_data(
+                            json.dumps(tool_data).encode(),
+                            reliable=True
+                        )
+                        logger.info(f"   📤 Sent cart update to frontend")
+                    except Exception as e:
+                        logger.error(f"   ⚠️ Failed to send to frontend: {e}")
+                else:
+                    logger.warning(f"   ⚠️ No local_participant, skipping data publish")
+                
+                if result.get('success'):
+                    return result.get('message', f"Updated {item_name}.")
+                else:
+                    return result.get('message', f"Could not update {item_name}.")
+            except Exception as e:
+                logger.error(f"   ❌ Error: {e}")
+                raise ToolError(f"Failed to update quantity: {str(e)}")
+        
+        return update_cart_quantity_tool
 
 
 # ============================================================================
