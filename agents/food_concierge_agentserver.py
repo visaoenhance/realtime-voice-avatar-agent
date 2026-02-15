@@ -13,13 +13,14 @@ Following LiveKit's official drive-thru example patterns:
 Reference: /livekit-reference/agents/examples/drive-thru/agent.py
 Comparison: See /docs/LIVEKIT_REFERENCE_COMPARISON.md
 
-Tools (6 total, matching TypeScript):
+Tools (7 total, matching TypeScript):
 1. get_user_profile - Get user preferences  
 2. find_food_item - Search menu items
 3. find_restaurants_by_type - Search restaurants
-4. quick_view_cart - View current cart
-5. quick_add_to_cart - Add items to cart
-6. quick_checkout - Complete order
+4. get_restaurant_menu - View full menu for a restaurant
+5. quick_view_cart - View current cart
+6. quick_add_to_cart - Add items to cart
+7. quick_checkout - Complete order
 
 Usage:
   python food_concierge_agentserver.py dev
@@ -57,6 +58,7 @@ from database import (
     get_user_profile,
     search_menu_items,
     search_restaurants_by_cuisine,
+    get_restaurant_menu,
     add_to_voice_cart,
     get_voice_cart,
     checkout_cart,  # Note: it's checkout_cart, not checkout_voice_cart
@@ -111,6 +113,7 @@ Available Tools:
 - get_user_profile: Load user preferences and delivery info
 - find_food_item: Search menu items by name/keyword (e.g., "jerk chicken", "cheesecake")
 - find_restaurants_by_type: Search restaurants by cuisine type OR restaurant name (e.g., "caribbean", "Island Breeze")
+- get_restaurant_menu: View full menu for a specific restaurant by slug (e.g., "island-breeze-caribbean")
 - quick_view_cart: Show current cart contents
 - quick_add_to_cart: Add items to cart
 - quick_checkout: Complete the order
@@ -118,6 +121,7 @@ Available Tools:
 Examples:
 - User: "I want Thai food" → find_food_item(query="Thai")
 - User: "Find Island Breeze" → find_restaurants_by_type(cuisine_type="Island Breeze")
+- User: "Show me the full menu for Island Breeze" → get_restaurant_menu(restaurant_slug="island-breeze-caribbean")
 - User: "I want jerk chicken" → find_food_item(query="jerk chicken")
 - User: "Add pad thai to cart" → quick_add_to_cart(item_name="pad thai", quantity="1")
 - User: "What's in my cart?" → quick_view_cart()
@@ -141,6 +145,7 @@ class FoodConciergeAgent(Agent):
                 self.build_get_profile_tool(),
                 self.build_find_food_tool(),
                 self.build_find_restaurants_tool(),
+                self.build_get_restaurant_menu_tool(),
                 self.build_fetch_image_tool(),
                 self.build_view_cart_tool(),
                 self.build_add_to_cart_tool(),
@@ -314,6 +319,89 @@ class FoodConciergeAgent(Agent):
                 raise ToolError(f"Failed to search restaurants: {str(e)}")
         
         return find_restaurants_by_type_tool
+    
+    def build_get_restaurant_menu_tool(self):
+        """Get full menu for a specific restaurant"""
+        
+        @function_tool
+        async def get_restaurant_menu_tool(
+            ctx: RunContext[UserState],
+            restaurant_slug: Annotated[
+                str,
+                Field(description="Restaurant slug (e.g., 'island-breeze-caribbean', 'noodle-express', 'brick-oven-slice')"),
+            ],
+        ) -> str:
+            """
+            Get the full menu (sections and items) for a restaurant.
+            Use this when the user wants to see all available dishes from a specific restaurant.
+            
+            Examples:
+            - "Show me the full menu for Island Breeze"
+            - "What's on the menu at Noodle Express?"
+            - "List all dishes from Brick Oven"
+            
+            Note: You must know the restaurant slug. If you only have the name, 
+            use find_restaurants_by_type first to get the slug.
+            """
+            logger.info(f"🔧 Tool: get_restaurant_menu(restaurant_slug='{restaurant_slug}')")
+            
+            try:
+                result = await get_restaurant_menu(restaurant_slug)
+                logger.info(f"   ✅ Fetched menu: {len(result.get('sections', []))} sections")
+                
+                # Send results to frontend for card rendering
+                if ctx.userdata.local_participant:
+                    try:
+                        import json
+                        tool_data = {
+                            "type": "tool_call",
+                            "tool_name": "get_restaurant_menu",
+                            "result": result
+                        }
+                        await ctx.userdata.local_participant.publish_data(
+                            json.dumps(tool_data).encode(),
+                            reliable=True
+                        )
+                        logger.info(f"   📤 Sent menu to frontend")
+                    except Exception as e:
+                        logger.error(f"   ⚠️ Failed to send to frontend: {e}")
+                else:
+                    logger.warning(f"   ⚠️ No local_participant, skipping data publish")
+                
+                if not result.get("success"):
+                    return result.get("message", "Could not fetch menu.")
+                
+                # Build text response
+                restaurant = result["restaurant"]
+                sections = result["sections"]
+                
+                if not sections:
+                    return f"I couldn't find menu items for {restaurant['name']} right now."
+                
+                response_parts = [
+                    f"Here's the menu at {restaurant['name']}:",
+                    ""  # blank line
+                ]
+                
+                for section in sections[:5]:  # Limit to first 5 sections in voice response
+                    response_parts.append(f"{section['title']}:")
+                    for item in section['items'][:3]:  # Limit to first 3 items per section
+                        price_str = f"${item['price']:.2f}"
+                        response_parts.append(f"  • {item['name']} - {price_str}")
+                    if len(section['items']) > 3:
+                        response_parts.append(f"  ... and {len(section['items']) - 3} more items")
+                    response_parts.append("")  # blank line
+                
+                if len(sections) > 5:
+                    response_parts.append(f"... and {len(sections) - 5} more sections")
+                
+                return "\n".join(response_parts)
+                
+            except Exception as e:
+                logger.error(f"   ❌ Error: {e}")
+                raise ToolError(f"Failed to fetch menu: {str(e)}")
+        
+        return get_restaurant_menu_tool
     
     def build_fetch_image_tool(self):
         """Fetch a photo of a menu item"""

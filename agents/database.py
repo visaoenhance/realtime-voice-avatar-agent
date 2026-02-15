@@ -345,6 +345,139 @@ async def search_restaurants_by_cuisine(cuisine_type: str, max_results: int = 3)
         return []
 
 
+async def get_restaurant_menu(restaurant_slug: str, limitSections: int = None, limitItemsPerSection: int = None) -> Dict[str, Any]:
+    """
+    Get full menu (sections and items) for a restaurant
+    Mirrors: food-chat/tools.ts -> getRestaurantMenu
+    """
+    try:
+        # First get restaurant details
+        restaurant_response = supabase.table("fc_restaurants").select(
+            "id, slug, name, cuisine, hero_image"
+        ).eq("slug", restaurant_slug).eq("is_active", True).limit(1).execute()
+        
+        if not restaurant_response.data:
+            return {
+                "success": False,
+                "message": f"Could not find restaurant: {restaurant_slug}",
+                "sections": []
+            }
+        
+        restaurant = restaurant_response.data[0]
+        restaurant_id = restaurant["id"]
+        
+        # Query menu sections with items (using the view if available, or manual join)
+        try:
+            # Try using the view first
+            menu_response = supabase.table("fc_menu_sections_with_items").select(
+                "*"
+            ).eq("restaurant_id", restaurant_id).order("section_position").execute()
+            
+            sections = []
+            for section_data in (menu_response.data or []):
+                items = []
+                if section_data.get("items"):
+                    for item in section_data["items"]:
+                        items.append({
+                            "id": item["id"],
+                            "slug": item.get("slug"),
+                            "name": item["name"],
+                            "description": item.get("description"),
+                            "price": float(item["base_price"]) if item.get("base_price") else 0,
+                            "tags": item.get("tags", []) if isinstance(item.get("tags"), list) else [],
+                            "calories": item.get("calories"),
+                            "rating": float(item["rating"]) if item.get("rating") else None,
+                            "image": item.get("image"),
+                            "sectionTitle": section_data["section_title"]
+                        })
+                
+                # Apply item limit if specified
+                if limitItemsPerSection:
+                    items = items[:limitItemsPerSection]
+                
+                sections.append({
+                    "id": section_data["section_id"],
+                    "slug": section_data.get("section_slug"),
+                    "title": section_data["section_title"],
+                    "description": section_data.get("section_description"),
+                    "position": section_data.get("section_position", 0),
+                    "items": items
+                })
+        
+        except Exception as view_error:
+            # Fallback: manual join if view doesn't exist
+            print(f"View query failed, using manual join: {view_error}")
+            sections_response = supabase.table("fc_menu_sections").select(
+                "id, slug, title, description, position"
+            ).eq("restaurant_id", restaurant_id).order("position").execute()
+            
+            sections = []
+            for section in (sections_response.data or []):
+                items_response = supabase.table("fc_menu_items").select(
+                    "id, slug, name, description, base_price, tags, calories, rating, image"
+                ).eq("section_id", section["id"]).eq("is_available", True).order("position").execute()
+                
+                items = []
+                for item in (items_response.data or []):
+                    items.append({
+                        "id": item["id"],
+                        "slug": item.get("slug"),
+                        "name": item["name"],
+                        "description": item.get("description"),
+                        "price": float(item["base_price"]) if item.get("base_price") else 0,
+                        "tags": item.get("tags", []) if isinstance(item.get("tags"), list) else [],
+                        "calories": item.get("calories"),
+                        "rating": float(item["rating"]) if item.get("rating") else None,
+                        "image": item.get("image"),
+                        "sectionTitle": section["title"]
+                    })
+                
+                # Apply item limit if specified
+                if limitItemsPerSection:
+                    items = items[:limitItemsPerSection]
+                
+                sections.append({
+                    "id": section["id"],
+                    "slug": section.get("slug"),
+                    "title": section["title"],
+                    "description": section.get("description"),
+                    "position": section.get("position", 0),
+                    "items": items
+                })
+        
+        # Apply section limit if specified
+        if limitSections:
+            sections = sections[:limitSections]
+        
+        # Generate speech summary
+        if sections and sections[0].get("items"):
+            lead_item = sections[0]["items"][0]
+            speech_summary = f"Here are {len(sections)} menu section{'s' if len(sections) != 1 else ''} at {restaurant['name']}. {lead_item['name']} is available for {format_currency(lead_item['price'])}."
+        else:
+            speech_summary = f"I could not find menu details for {restaurant['name']} right now."
+        
+        return {
+            "success": True,
+            "restaurant": {
+                "id": restaurant["id"],
+                "slug": restaurant["slug"],
+                "name": restaurant["name"],
+                "cuisine": restaurant.get("cuisine"),
+                "heroImage": restaurant.get("hero_image")
+            },
+            "sections": sections,
+            "speechSummary": speech_summary
+        }
+        
+    except Exception as error:
+        print(f"Error in get_restaurant_menu: {error}")
+        return {
+            "success": False,
+            "message": f"Error fetching menu: {str(error)}",
+            "sections": []
+        }
+
+
 def get_voice_cart() -> Dict[str, Any]:
     """Get current voice cart"""
     global voice_cart
