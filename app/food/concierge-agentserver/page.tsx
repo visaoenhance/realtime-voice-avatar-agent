@@ -927,14 +927,14 @@ function VoiceAssistantControls({
             role: 'assistant', 
             content: `Executing: ${data.tool_name}`,
             toolName: data.tool_name,
+            toolResult: data.result 
+          });
           
           // Refresh cart when items are added
           if (data.tool_name === 'quick_add_to_cart' || data.tool_name === 'quickAddToCart' || data.tool_name === 'addItemToCart') {
             console.log('[AGENTSERVER] 🛒 Cart updated, refreshing count...');
             setTimeout(() => onCartUpdate(), 500); // Small delay to ensure backend has updated
           }
-            toolResult: data.result 
-          });
         } else if (data.type === 'agent_log') {
           // NEW: Handle agent logs for debug panel
           console.log('[AGENTSERVER] 📝 Agent log:', data);
