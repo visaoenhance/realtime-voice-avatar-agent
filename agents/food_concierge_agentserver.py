@@ -515,7 +515,8 @@ class FoodConciergeAgent(Agent):
             logger.info("🔧 Tool: quick_view_cart()")
             
             try:
-                cart = get_voice_cart()  # Sync function, no await
+                result = get_voice_cart()  # Sync function, no await
+                cart = result.get('cart', {})
                 
                 if not cart or not cart.get('items'):
                     return "Your cart is empty."
