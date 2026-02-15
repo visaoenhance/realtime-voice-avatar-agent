@@ -4,7 +4,11 @@ import React, { useState } from 'react';
 import FoodCourtHeader from '@/components/FoodCourtHeader';
 import HomeCartControls from './HomeCartControls';
 
-export default function LandingPageHeader() {
+interface LandingPageHeaderProps {
+  environmentBadge?: React.ReactNode;
+}
+
+export default function LandingPageHeader({ environmentBadge }: LandingPageHeaderProps) {
   // For landing page, we'll use HomeCartControls separately
   // So we create a dummy function since FoodCourtHeader requires it
   // but we'll hide the default cart button
@@ -17,6 +21,7 @@ export default function LandingPageHeader() {
           <a href="/" className="font-display text-3xl tracking-[0.3em] text-emerald-600 transition hover:text-emerald-500">
             Food Court
           </a>
+          {environmentBadge}
           <div className="hidden md:flex items-center gap-2 text-xs text-slate-600">
             <span className="text-slate-400">📍</span>
             <span>1234 Main Street, Orlando, FL</span>

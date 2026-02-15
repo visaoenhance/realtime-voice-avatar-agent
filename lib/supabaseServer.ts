@@ -1,10 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
+import { credentials } from './supabaseConfig';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = credentials.url;
+const supabaseServiceRoleKey = credentials.serviceRoleKey;
 
 if ((!supabaseUrl || !supabaseServiceRoleKey) && typeof window === 'undefined') {
-  console.warn('[supabase] SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set. Supabase-dependent features will be disabled.');
+  console.warn('[supabase] Credentials not set. Supabase-dependent features will be disabled.');
 }
 
 export const supabase = supabaseUrl && supabaseServiceRoleKey

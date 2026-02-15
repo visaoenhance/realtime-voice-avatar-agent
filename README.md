@@ -30,15 +30,43 @@ This repository now centers on a human-in-the-loop **Food Court** concierge: a v
    ```bash
    cp env.local.example .env.local
    ```
+   
+   **Environment Switching**: This project supports both local (Docker) and remote (Supabase Cloud) databases.
+   
+   Set `SUPABASE_ENV` in `.env.local`:
+   - `SUPABASE_ENV=local` – Uses local Docker Supabase (127.0.0.1:54321)
+   - `SUPABASE_ENV=remote` – Uses production Supabase Cloud
+   
+   Quick switch:
+   ```bash
+   ./scripts/switch-env.sh local   # Switch to local
+   ./scripts/switch-env.sh remote  # Switch to remote
+   ```
+   
    Required keys:
    ```
+   # Environment selector
+   SUPABASE_ENV=local
+   
+   # Local Supabase (Docker)
+   LOCAL_SUPABASE_URL=http://127.0.0.1:54321
+   LOCAL_SUPABASE_ANON_KEY=...
+   LOCAL_SUPABASE_SERVICE_ROLE_KEY=...
+   
+   # Remote Supabase (Production)
+   REMOTE_SUPABASE_URL=https://...supabase.co
+   REMOTE_SUPABASE_ANON_KEY=...
+   REMOTE_SUPABASE_SERVICE_ROLE_KEY=...
+   
+   # Other
    OPENAI_API_KEY=sk-...
-   NEXT_PUBLIC_SUPABASE_URL=https://...supabase.co        # optional for live data
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-   SUPABASE_URL=https://...supabase.co
-   SUPABASE_SERVICE_ROLE_KEY=...
    DEMO_PROFILE_ID=00000000-0000-0000-0000-0000000000fc
    ```
+   
+   **Benefits of dual environments**:
+   - **Local**: Fast development, offline work, experimenting with schema changes
+   - **Remote**: Demos, production, external access, team collaboration
+   - **Disaster recovery**: Keep both synced so you can instantly switch if one fails
 
 3. **Seed Supabase (for live restaurant data)**
    - Create a Supabase project.
