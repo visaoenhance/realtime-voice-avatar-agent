@@ -949,7 +949,7 @@ function VoiceAssistantControls({
         console.log('[AGENTSERVER] ℹ️ Non-JSON data received (likely audio)');
       }
     };
-, onCartUpdate
+    
     room.on('dataReceived', handleData);
     console.log('[AGENTSERVER] ✅ Data listener registered');
     
