@@ -136,6 +136,7 @@ function renderToolOutput(toolName: string, payload: any) {
       return <RestaurantSearchCard data={restaurantData} />;
     
     case 'getRestaurantMenu':
+    case 'get_restaurant_menu':
       if (!payload || !payload.restaurant || !Array.isArray(payload.sections)) {
         return <div className="text-xs text-red-500">Unable to load restaurant menu.</div>;
       }
