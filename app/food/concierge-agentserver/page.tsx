@@ -214,6 +214,58 @@ function renderToolOutput(toolName: string, payload: any) {
       };
       return <ShoppingCartCard data={viewCartData} />;
     
+    case 'removeFromCart':
+    case 'remove_from_cart':
+      // Handle cart removal - show updated cart or empty message
+      if (!payload || payload.success === false) {
+        return <div className="text-xs text-red-500">{payload?.message || 'Unable to remove item from cart.'}</div>;
+      }
+      // If cart is now empty (null), show message
+      if (!payload.cart) {
+        return <div className="text-xs text-green-600">{payload.message || 'Item removed. Cart is now empty.'}</div>;
+      }
+      // Show updated cart
+      const removeFromCartData = {
+        success: true,
+        cartId: payload.cart.id || 'cart-unknown',
+        restaurant: payload.restaurant || {
+          id: payload.cart.restaurantId || 'unknown',
+          name: payload.cart.restaurantName || 'Restaurant',
+          cuisine: 'american'
+        },
+        subtotal: payload.cart.subtotal || 0,
+        cart: payload.cart,
+        speechSummary: payload.message || payload.speechSummary || 'Item removed from cart',
+        ...payload
+      };
+      return <ShoppingCartCard data={removeFromCartData} />;
+    
+    case 'updateCartQuantity':
+    case 'update_cart_quantity':
+      // Handle quantity update - show updated cart or empty message
+      if (!payload || payload.success === false) {
+        return <div className="text-xs text-red-500">{payload?.message || 'Unable to update cart quantity.'}</div>;
+      }
+      // If cart is now empty (null), show message
+      if (!payload.cart) {
+        return <div className="text-xs text-green-600">{payload.message || 'Item removed. Cart is now empty.'}</div>;
+      }
+      // Show updated cart
+      const updateCartData = {
+        success: true,
+        cartId: payload.cart.id || 'cart-unknown',
+        restaurant: payload.restaurant || {
+          id: payload.cart.restaurantId || 'unknown',
+          name: payload.cart.restaurantName || 'Restaurant',
+          cuisine: 'american'
+        },
+        subtotal: payload.cart.subtotal || 0,
+        cart: payload.cart,
+        speechSummary: payload.message || payload.speechSummary || 'Cart quantity updated',
+        ...payload
+      };
+      return <ShoppingCartCard data={updateCartData} />;
+    
     case 'checkout':
     case 'quickCheckout':
     case 'quick_checkout':
