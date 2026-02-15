@@ -824,14 +824,14 @@ export default function AgentServerConcierge() {
  */
 function VoiceAssistantControls({ 
   onDisconnect, 
-  onMessage,,
+  onMessage,
+  onAgentLog,
   onCartUpdate
 }: { 
   onDisconnect: () => void;
   onMessage: (msg: ChatMessage) => void;
   onAgentLog: (log: { type: 'user_said' | 'agent_saying' | 'tool_called' | 'tool_result' | 'info' | 'error'; message: string; timestamp: number; details?: any }) => void;
-  onCartUpdate: (
-  onAgentLog: (log: { type: 'user_said' | 'agent_saying' | 'tool_called' | 'tool_result' | 'info' | 'error'; message: string; timestamp: number; details?: any }) => void;
+  onCartUpdate: () => void;
 }) {
   const { state, audioTrack } = useVoiceAssistant();
   const connectionState = useConnectionState();
