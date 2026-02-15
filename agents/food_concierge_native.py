@@ -1,5 +1,26 @@
 """
-LiveKit Native Food Concierge Agent
+LiveKit Native Food Concierge Agent [ARCHIVED - OLD PATTERN]
+
+⚠️ DEPRECATED: This file uses the OLD LiveKit Agents API pattern (v0.x-1.2)
+⚠️ USE INSTEAD: food_concierge_agentserver.py (follows v1.4.1+ AgentServer pattern)
+
+WHY ARCHIVED:
+- Uses old CLI worker pattern instead of AgentServer
+- Uses direct plugin imports (openai.STT) instead of inference layer
+- Function parameters with defaults break OpenAI schema validation
+- No typed userdata with RunContext pattern
+- Missing turn detection and max_tool_steps
+
+This file is kept as reference for:
+- Understanding what we tried first
+- Learning from mistakes (schema validation errors)
+- Comparison for YouTube demo content
+
+For working implementation, see: food_concierge_agentserver.py
+For reference patterns, see: /livekit-reference/agents/examples/drive-thru/agent.py
+
+ORIGINAL DOCUMENTATION:
+========================
 EXACTLY mirrors voice-chat/tools.ts with 6 function tools
 
 Architecture:
@@ -28,6 +49,8 @@ import os
 import sys
 import signal
 import atexit
+import json
+import traceback
 from typing import Annotated
 from dotenv import load_dotenv
 import os.path
@@ -142,10 +165,10 @@ logger.info(f"   VAD: Silero")
 @llm.function_tool(
     description="Get the user's food preferences including favorite cuisines, dietary restrictions, spice level, and budget range"
 )
-async def get_user_profile_tool(profile_id: str | None = None) -> str:
+async def get_user_profile_tool() -> str:
     """Get user preferences from Supabase"""
-    logger.info(f"🔍 Tool: get_user_profile(profile_id={profile_id})")
-    result = await get_user_profile(profile_id)
+    logger.info("🔍 Tool: get_user_profile()")
+    result = await get_user_profile(None)  # Always use default demo profile
     logger.info(f"   ✅ Profile: {result}")
     return f"User preferences retrieved: {result}"
 
@@ -226,16 +249,15 @@ async def quick_view_cart_tool() -> str:
 
 
 @llm.function_tool(
-    description="Add items to the cart. Specify item name, optional restaurant, and quantity"
+    description="Add items to the cart. Specify item name and quantity. Agent will determine restaurant automatically."
 )
 async def quick_add_to_cart_tool(
     item_name: str,
-    restaurant_name: str | None = None,
     quantity: int = 1,
 ) -> str:
         """Add items to cart"""
         logger.info(f"🔍 Tool: quick_add_to_cart(item_name='{item_name}', quantity={quantity})")
-        result = add_to_voice_cart(item_name, restaurant_name, quantity, None)  # Pass None for additional_items
+        result = add_to_voice_cart(item_name, None, quantity, None)  # Restaurant determined automatically
         logger.info(f"   ✅ Cart updated: {result['itemCount']} items, total ${result['total']:.2f}")
         
         if result["success"]:
@@ -353,18 +375,49 @@ Remember: Be natural, helpful, and conversational!
         vad=silero.VAD.load(),      # Voice Activity Detection
     )
     
-    # Start the agent session  
-    await session.start(
-        room=ctx.room,
-        agent=FoodConciergeAgent(),
-    )
-    
-    # Generate initial greeting
-    await session.generate_reply(
-        instructions="Greet the user warmly and ask how you can help with their food order today."
-    )
-    
-    logger.info("✅ Voice Agent Session started")
+    # Start the agent session with error handling
+    try:
+        await session.start(
+            room=ctx.room,
+            agent=FoodConciergeAgent(),
+        )
+        
+        # Generate initial greeting
+        await session.generate_reply(
+            instructions="Greet the user warmly and ask how you can help with their food order today."
+        )
+        
+        logger.info("✅ Voice Agent Session started")
+        
+    except Exception as e:
+        error_type = type(e).__name__
+        error_msg = str(e)
+        error_trace = traceback.format_exc()
+        
+        logger.error(f"❌ Agent session failed: {error_type}: {error_msg}")
+        logger.error(f"   Full traceback:\n{error_trace}")
+        
+        # Send error to frontend via data channel
+        try:
+            error_payload = json.dumps({
+                'type': 'agent_error',
+                'error_type': error_type,
+                'error_message': error_msg,
+                'fatal': True,
+                'timestamp': asyncio.get_event_loop().time()
+            }).encode('utf-8')
+            
+            await ctx.room.local_participant.publish_data(
+                error_payload,
+                reliable=True,
+                destination_identities=[participant.identity] if participant else None
+            )
+            logger.info("📤 Error message sent to frontend")
+        except Exception as send_error:
+            logger.error(f"❌ Failed to send error to frontend: {send_error}")
+        
+        # Re-raise to ensure agent process handles it
+        raise
 
 
 # ============================================================================

@@ -16,7 +16,22 @@
     "test:ai-sdk": "node scripts/test-ai-sdk-end-to-end.js",
     "test:ai-sdk:search": "node scripts/test-ai-sdk-orlando-search.js",
     "test:ai-sdk:context": "node scripts/test-ai-sdk-get-context.js",
-    "test:livekit": "node scripts/test-livekit-regression.js"
+    "test:livekit": "node scripts/test-livekit-regression.js",
+    "test:livekit:agentserver": "node scripts/test-livekit-agentserver-token.js",
+    "test:livekit:native": "node scripts/test-livekit-native-token.js",
+    "test:livekit:server": "node scripts/livekit-native/test-livekit-server-pattern.js",
+    "test:livekit:inference": "node scripts/livekit-native/test-livekit-inference.js",
+    "test:livekit:userdata": "node scripts/livekit-native/test-livekit-userdata.js",
+    "test:livekit:session": "node scripts/livekit-native/test-livekit-session-config.js",
+    "test:livekit:tool-profile": "node scripts/livekit-native/test-tool-get-profile.js",
+    "test:livekit:tool-food": "node scripts/livekit-native/test-tool-find-food.js",
+    "test:livekit:tool-cart": "node scripts/livekit-native/test-tool-add-cart.js",
+    "test:livekit:schemas": "node scripts/livekit-native/test-all-tools-schema.js",
+    "test:livekit:e2e-v2": "node scripts/livekit-native/test-livekit-native-e2e-v2.js",
+    "test:livekit:errors": "node scripts/livekit-native/test-livekit-error-handling.js",
+    "test:livekit:perf": "node scripts/livekit-native/test-livekit-performance.js",
+    "test:livekit:all": "npm run test:livekit:server && npm run test:livekit:inference && npm run test:livekit:userdata && npm run test:livekit:session && npm run test:livekit:schemas && npm run test:livekit:e2e-v2",
+    "test:livekit:smoke": "npm run test:livekit:server && npm run test:livekit:schemas && npm run test:livekit:e2e-v2"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.58",

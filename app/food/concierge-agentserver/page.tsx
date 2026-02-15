@@ -1,5 +1,17 @@
 'use client';
 
+/**
+ * LiveKit AgentServer Food Concierge (v1.4.1+ Pattern)
+ * 
+ * Connects to food_concierge_agentserver.py which follows:
+ * - AgentServer with @server.rtc_session
+ * - inference.STT/LLM/TTS (not direct plugins)
+ * - Typed userdata with RunContext
+ * - Fixed function parameters (no schema errors)
+ * 
+ * This is the WORKING implementation following LiveKit's official patterns.
+ */
+
 import Link from 'next/link';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import "@livekit/components-styles";
@@ -18,8 +30,9 @@ import {
 import { Track, ConnectionState } from 'livekit-client';
 import { CustomerProfileCard, RestaurantSearchCard, RestaurantMenuCard, ShoppingCartCard, MenuItemSpotlightCard, FoodImagePreviewCard, RestaurantRecommendationCard, OrderConfirmationCard } from '@/components/food-cards';
 import DebugPanel from '@/components/DebugPanel';
+import FoodCourtHeader from '@/components/FoodCourtHeader';
 
-const LIVEKIT_TOKEN_ENDPOINT = "/api/livekit-native/token";
+const LIVEKIT_TOKEN_ENDPOINT = "/api/livekit-agentserver/token";
 
 const SAMPLE_VOICE_PROMPTS = [
   'I want Thai food for lunch',
@@ -90,7 +103,7 @@ type OrderSummary = {
   items?: OrderItemSummary[];
 };
 
-// Render tool output cards (matching other concierge pages)
+// Render tool output cards
 function renderToolOutput(toolName: string, payload: any) {
   if (!payload || typeof payload !== 'object') {
     return null;
@@ -107,10 +120,20 @@ function renderToolOutput(toolName: string, payload: any) {
     
     case 'searchRestaurants':
     case 'find_restaurants_by_type':
-      if (!payload || !Array.isArray(payload.restaurants)) {
+      // Transform AgentServer payload to match card expectations
+      const restaurantResults = payload.restaurants || payload.results || [];
+      if (!Array.isArray(restaurantResults) || restaurantResults.length === 0) {
         return <div className="text-xs text-red-500">Unable to load restaurant search results.</div>;
       }
-      return <RestaurantSearchCard data={payload} />;
+      const restaurantData = {
+        results: restaurantResults,
+        filters: {
+          cuisine: payload.cuisine || undefined,
+          ...payload.filters
+        },
+        speechSummary: payload.speechSummary || `Found ${restaurantResults.length} restaurant${restaurantResults.length !== 1 ? 's' : ''}`
+      };
+      return <RestaurantSearchCard data={restaurantData} />;
     
     case 'getRestaurantMenu':
       if (!payload || !payload.restaurant || !Array.isArray(payload.sections)) {
@@ -118,13 +141,33 @@ function renderToolOutput(toolName: string, payload: any) {
       }
       return <RestaurantMenuCard data={payload} />;
     
+    case 'fetchMenuItemImage':
+    case 'fetch_menu_item_image':
+      if (!payload || payload.success === false) {
+        return <div className="text-xs text-red-500">{payload?.message || 'Unable to load image preview.'}</div>;
+      }
+      return <FoodImagePreviewCard data={payload} />;
+    
     case 'searchMenuItems':
     case 'findFoodItem':
     case 'find_food_item':
-      if (!payload || !Array.isArray(payload.results)) {
+      // Transform AgentServer payload to match card expectations
+      const menuResults = payload.results || [];
+      if (!Array.isArray(menuResults)) {
         return <div className="text-xs text-red-500">Unable to load menu item search results.</div>;
       }
-      return <MenuItemSpotlightCard data={payload} />;
+      const menuItemData = {
+        results: menuResults,
+        filters: {
+          query: payload.query || undefined,
+          maxPrice: payload.maxPrice || undefined,
+          tags: payload.tags || undefined,
+          ...payload.filters
+        },
+        restaurant: payload.restaurant || undefined,
+        speechSummary: payload.speechSummary || `Found ${menuResults.length} item${menuResults.length !== 1 ? 's' : ''}`
+      };
+      return <MenuItemSpotlightCard data={menuItemData} />;
     
     case 'addItemToCart':
     case 'quickAddToCart':
@@ -132,7 +175,21 @@ function renderToolOutput(toolName: string, payload: any) {
       if (!payload || payload.success === false) {
         return <div className="text-xs text-red-500">{payload?.message || 'Unable to add item to cart.'}</div>;
       }
-      return <ShoppingCartCard data={payload} />;
+      // Ensure required fields are present for ShoppingCartCard
+      const addToCartData = {
+        success: payload.success !== false,
+        cartId: payload.cartId || payload.cart?.id || 'cart-unknown',
+        restaurant: payload.restaurant || payload.cart?.restaurant || {
+          id: payload.cart?.restaurantId || 'unknown',
+          name: payload.cart?.restaurantName || 'Restaurant',
+          cuisine: 'american'
+        },
+        subtotal: payload.subtotal || payload.cart?.subtotal || 0,
+        cart: payload.cart || {},
+        speechSummary: payload.speechSummary || 'Item added to cart',
+        ...payload
+      };
+      return <ShoppingCartCard data={addToCartData} />;
     
     case 'viewCart':
     case 'quickViewCart':
@@ -140,7 +197,21 @@ function renderToolOutput(toolName: string, payload: any) {
       if (!payload || !payload.cart) {
         return <div className="text-xs text-red-500">Unable to load cart.</div>;
       }
-      return <ShoppingCartCard data={payload} />;
+      // Transform to full CartData structure
+      const viewCartData = {
+        success: true,
+        cartId: payload.cart.id || payload.cartId || 'cart-unknown',
+        restaurant: payload.restaurant || {
+          id: payload.cart.restaurantId || 'unknown',
+          name: payload.cart.restaurantName || 'Restaurant',
+          cuisine: 'american'
+        },
+        subtotal: payload.cart.subtotal || 0,
+        cart: payload.cart,
+        speechSummary: payload.speechSummary || `Your cart has ${payload.cart.items?.length || 0} item${payload.cart.items?.length !== 1 ? 's' : ''}`,
+        ...payload
+      };
+      return <ShoppingCartCard data={viewCartData} />;
     
     case 'checkout':
     case 'quickCheckout':
@@ -148,14 +219,29 @@ function renderToolOutput(toolName: string, payload: any) {
       if (!payload || payload.success === false) {
         return <div className="text-xs text-red-500">{payload?.message || 'Checkout failed.'}</div>;
       }
-      return <OrderConfirmationCard data={payload} />;
+      // Ensure required fields for OrderConfirmationCard
+      const checkoutData = {
+        success: true,
+        orderId: payload.orderId || payload.orderNumber || 'unknown',
+        restaurant: payload.restaurant || {
+          id: 'unknown',
+          name: 'Restaurant',
+          cuisine: 'american'
+        },
+        itemCount: payload.itemCount || 0,
+        total: payload.total || 0,
+        estimatedDeliveryTime: payload.estimatedDeliveryTime || '30-45 minutes',
+        speechSummary: payload.speechSummary || 'Order confirmed!',
+        ...payload
+      };
+      return <OrderConfirmationCard data={checkoutData} />;
     
     default:
       return null;
   }
 }
 
-export default function NativeConcierge() {
+export default function AgentServerConcierge() {
   const [roomName, setRoomName] = useState("");
   const [token, setToken] = useState("");
   const [livekitUrl, setLivekitUrl] = useState("");
@@ -167,6 +253,12 @@ export default function NativeConcierge() {
     payload: any;
     timestamp: number;
     executionTime?: number;
+  }>>([]);
+  const [agentLogs, setAgentLogs] = useState<Array<{
+    type: 'user_said' | 'agent_saying' | 'tool_called' | 'tool_result' | 'info' | 'error';
+    message: string;
+    timestamp: number;
+    details?: any;
   }>>([]);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const [existingSession, setExistingSession] = useState<{roomName: string, timestamp: number} | null>(null);
@@ -183,25 +275,25 @@ export default function NativeConcierge() {
   
   // Check for existing session on mount
   useEffect(() => {
-    const stored = localStorage.getItem('livekit-native-session');
+    const stored = localStorage.getItem('livekit-agentserver-session');
     if (stored) {
       try {
         const session = JSON.parse(stored);
         const ageMinutes = (Date.now() - session.timestamp) / 1000 / 60;
         
-        // If session is less than 30 minutes old, show warning
         if (ageMinutes < 30) {
-          console.log('[NATIVE] ⚠️  Found existing session:', session.roomName, `(${Math.round(ageMinutes)}min ago)`);
+          console.log('[AGENTSERVER] ⚠️  Found existing session:', session.roomName, `(${Math.round(ageMinutes)}min ago)`);
           setExistingSession(session);
         } else {
-          console.log('[NATIVE] 🧹 Clearing stale session (>30min old)');
-          localStorage.removeItem('livekit-native-session');
+          console.log('[AGENTSERVER] 🧹 Clearing stale session (>30min old)');
+          localStorage.removeItem('livekit-agentserver-session');
         }
       } catch (e) {
-        localStorage.removeItem('livekit-native-session');
+        localStorage.removeItem('livekit-agentserver-session');
       }
     }
   }, []);
+  
   // Calculate total cart items
   const totalCartItems = useMemo(
     () => (cartSummary ? cartSummary.items.reduce((sum, item) => sum + item.quantity, 0) : 0),
@@ -227,7 +319,7 @@ export default function NativeConcierge() {
         setCartSummary(null);
       }
     } catch (error) {
-      console.error('[native] fetchCart error', error);
+      console.error('[agentserver] fetchCart error', error);
     } finally {
       setCartLoading(false);
       cartFetchInFlightRef.current = false;
@@ -253,7 +345,7 @@ export default function NativeConcierge() {
         setOrders([]);
       }
     } catch (error) {
-      console.error('[native] fetchOrders error', error);
+      console.error('[agentserver] fetchOrders error', error);
     } finally {
       setOrdersLoading(false);
       ordersFetchInFlightRef.current = false;
@@ -286,7 +378,7 @@ export default function NativeConcierge() {
         setCartActionMessage(data?.message ?? 'Unable to clear cart.');
       }
     } catch (error) {
-      console.error('[native] clear cart error', error);
+      console.error('[agentserver] clear cart error', error);
       setCartActionMessage('Unexpected error clearing cart.');
     }
   }, [fetchCartFromApi]);
@@ -305,7 +397,7 @@ export default function NativeConcierge() {
         setCartActionMessage(data?.message ?? 'Unable to clear orders.');
       }
     } catch (error) {
-      console.error('[native] clear orders error', error);
+      console.error('[agentserver] clear orders error', error);
       setCartActionMessage('Unexpected error clearing orders.');
     }
   }, [fetchOrdersFromApi]);
@@ -329,7 +421,7 @@ export default function NativeConcierge() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          roomName: `food-concierge-native-${Date.now()}`,
+          roomName: `food-concierge-agentserver-${Date.now()}`,
           participantName: `user-${Math.floor(Math.random() * 1000)}`,
         }),
       });
@@ -349,9 +441,9 @@ export default function NativeConcierge() {
         roomName: data.roomName,
         timestamp: Date.now()
       };
-      localStorage.setItem('livekit-native-session', JSON.stringify(sessionInfo));
-      console.log("[NATIVE] 💾 Session stored in localStorage:", data.roomName);
-      setExistingSession(null); // Clear any warning
+      localStorage.setItem('livekit-agentserver-session', JSON.stringify(sessionInfo));
+      console.log("[AGENTSERVER] 💾 Session stored in localStorage:", data.roomName);
+      setExistingSession(null);
 
       console.log("✅ Token received, connecting to room:", data.roomName);
     } catch (err) {
@@ -363,9 +455,8 @@ export default function NativeConcierge() {
 
   // Disconnect and reset
   const handleDisconnect = () => {
-    // Clear session from localStorage
-    localStorage.removeItem('livekit-native-session');
-    console.log("[NATIVE] 🧹 Session cleared from localStorage");
+    localStorage.removeItem('livekit-agentserver-session');
+    console.log("[AGENTSERVER] 🧹 Session cleared from localStorage");
     
     setToken("");
     setRoomName("");
@@ -376,258 +467,210 @@ export default function NativeConcierge() {
 
   // Force clear existing session
   const handleClearExistingSession = () => {
-    console.log("[NATIVE] 🗑️ Forcing clear of existing session");
-    localStorage.removeItem('livekit-native-session');
+    console.log("[AGENTSERVER] 🗑️ Forcing clear of existing session");
+    localStorage.removeItem('livekit-agentserver-session');
     setExistingSession(null);
   };
 
   const handleSamplePrompt = (prompt: string) => {
-    // Add user message
     setMessages(prev => [...prev, { role: 'user', content: prompt }]);
-    // Note: actual voice input would be handled by LiveKit
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <header className="border-b border-slate-200 bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <div className="flex items-center gap-10">
-            <Link href="/" className="font-display text-3xl tracking-[0.35em] text-emerald-600">
-              Food Court
-            </Link>
-            <div className="hidden md:flex items-center gap-2 text-xs text-slate-600">
-              <span className="text-slate-400">📍</span>
-              <span>1234 Main Street, Orlando, FL</span>
-            </div>
-          </div>
-          <button
-            className="hidden md:flex rounded-full border border-slate-300 px-6 py-2 text-xs uppercase tracking-[0.3em] text-slate-600 transition hover:border-emerald-400 hover:text-emerald-600 items-center gap-2"
-            onClick={openCartModal}
-          >
-            🛒 Cart{totalCartItems > 0 ? ` (${totalCartItems})` : ''}
-          </button>
-          <div className="flex items-center gap-4 text-xs md:hidden">
+      <FoodCourtHeader 
+        pageTitle="Voice Concierge (AgentServer)"
+        totalCartItems={totalCartItems}
+        onCartClick={openCartModal}
+      />
+
+      <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
+        {/* Hero */}
+        <section className="text-center">
+          <h1 className="text-4xl font-bold tracking-tight text-slate-900 mb-3">
+            🎙️ Voice Food Concierge (AgentServer Pattern)
+          </h1>
+          <p className="text-lg text-slate-600 max-w-xl mx-auto">
+            Full-featured voice ordering with cards, cart, and checkout using the new AgentServer v1.4.1+ pattern
+          </p>
+        </section>
+
+        {/* Existing Session Warning */}
+        {existingSession && (
+          <section className="rounded-3xl border-2 border-amber-400 bg-amber-50 p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-amber-900 mb-2">⚠️ Existing Session Detected</h3>
+            <p className="text-sm text-amber-800 mb-3">
+              Found session: <code className="bg-amber-100 px-2 py-1 rounded">{existingSession.roomName}</code>
+            </p>
             <button
-              type="button"
-              onClick={openCartModal}
-              className="flex items-center gap-2 rounded-full border border-slate-300 px-3 py-1 uppercase tracking-[0.3em] text-slate-600 transition hover:border-purple-400 hover:text-purple-600"
+              onClick={handleClearExistingSession}
+              className="rounded-full border border-amber-400 px-4 py-1.5 text-xs uppercase tracking-[0.3em] text-amber-800 transition hover:bg-amber-100"
             >
-              <span role="img" aria-label="cart">
-                🛒
-              </span>
-              Cart
-              {totalCartItems > 0 ? (
-                <span className="ml-1 inline-flex h-4 min-w-[1.25rem] items-center justify-center rounded-full bg-purple-500 px-1 text-[10px] font-semibold text-white">
-                  {totalCartItems}
-                </span>
-              ) : null}
+              Clear & Continue
             </button>
-          </div>
-        </div>
-      </header>
+          </section>
+        )}
 
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10">
-        <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-          <div className="mb-6 grid gap-6 md:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] md:items-start">
-            <div className="space-y-3">
-              <div className="text-xs uppercase tracking-[0.35em] text-slate-500">LiveKit Native Pipeline</div>
-              <h1 className="text-3xl font-semibold text-slate-900 md:text-4xl">Python Voice Agent</h1>
-              <p className="text-sm text-slate-600">
-                Native LiveKit Agents SDK implementation with Python. Automatic STT→LLM→TTS pipeline with built-in voice activity detection, 
-                interruption handling, and function calling.
+        {/* Connection Section */}
+        {!token ? (
+          <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="flex flex-col items-center text-center">
+              <h2 className="text-2xl font-semibold text-slate-900 mb-3">
+                Connect to Food Concierge
+              </h2>
+              <p className="text-slate-600 mb-6 max-w-md">
+                Start a voice conversation with your AI food assistant. Powered by AgentServer v1.4.1+ with full UI/UX parity.
               </p>
-              
-              {token && livekitUrl ? (
-                <LiveKitRoom
-                  serverUrl={livekitUrl}
-                  token={token}
-                  connect={true}
-                  audio={true}
-                  video={false}
-                  onConnected={() => {
-                    console.log("[NATIVE] ✅ Connected to LiveKit room");
-                    console.log("[NATIVE] 🔗 Server URL:", livekitUrl);
-                    console.log("[NATIVE] 🎯 Waiting for Python agent to join...");
-                    setIsConnecting(false);
-                  }}
-                  onDisconnected={() => {
-                    console.log("[NATIVE] 👋 Disconnected from LiveKit room");
-                    handleDisconnect();
-                  }}
-                  onError={(error) => {
-                    console.error("[NATIVE] ❌ LiveKit room error:", error);
-                    setError(error.message);
-                  }}
-                >
-                  <VoiceAssistantControls 
-                    onDisconnect={handleDisconnect}
-                    onMessage={(msg) => {
-                      console.log('[NATIVE] 💬 New message:', msg);
-                      setMessages(prev => [...prev, msg]);
-                    }}
-                  />
-                  <RoomAudioRenderer />
-                </LiveKitRoom>
-              ) : (
-                <div className="pt-2">
-                  {/* Existing Session Warning */}
-                  {existingSession && (
-                    <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                      <div className="flex items-start gap-3">
-                        <span className="text-2xl">⚠️</span>
-                        <div className="flex-1">
-                          <p className="text-amber-900 font-semibold text-sm mb-1">
-                            Session Already Active
-                          </p>
-                          <p className="text-amber-700 text-xs mb-3">
-                            A session was started {Math.round((Date.now() - existingSession.timestamp) / 1000 / 60)} minutes ago
-                            {existingSession.roomName && (
-                              <span className="block mt-1 font-mono text-[10px] opacity-75">
-                                Room: {existingSession.roomName}
-                              </span>
-                            )}
-                          </p>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={handleClearExistingSession}
-                              className="rounded-full bg-amber-600 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-white transition hover:bg-amber-700"
-                            >
-                              End & Start New
-                            </button>
-                            <button
-                              onClick={() => setExistingSession(null)}
-                              className="rounded-full border border-amber-400 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-amber-700 transition hover:bg-amber-100"
-                            >
-                              Continue Anyway
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="flex items-center justify-center gap-2 mb-4">
-                    <div className="w-3 h-3 rounded-full bg-slate-400" />
-                    <span className="text-sm text-slate-600">Not connected</span>
-                  </div>
-                  
-                  <button
-                    onClick={handleConnect}
-                    disabled={isConnecting}
-                    className={`w-full rounded-full border border-emerald-400 bg-emerald-500 px-4 py-2 text-xs uppercase tracking-[0.3em] text-white transition hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    {isConnecting ? 'Connecting...' : 'Start Voice Session'}
-                  </button>
 
-                  {error && (
-                    <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-red-700 text-sm">
-                        <strong>Error:</strong> {error}
-                      </p>
-                    </div>
-                  )}
+              {error && (
+                <div className="w-full max-w-md mb-4 p-4 rounded-xl bg-red-50 border border-red-200">
+                  <p className="text-sm text-red-800 font-semibold mb-1">Connection Error</p>
+                  <p className="text-xs text-red-700">{error}</p>
+                  <p className="text-xs text-red-600 mt-2">
+                    Make sure the Python agent is running:
+                    <code className="block bg-red-100 p-2 rounded mt-1">
+                      python agents/food_concierge_agentserver.py dev
+                    </code>
+                  </p>
                 </div>
               )}
-            </div>
 
-            <div className="rounded-3xl border border-purple-100 bg-purple-50/50 p-5 shadow-sm">
-              <div className="text-xs font-semibold uppercase tracking-[0.3em] text-purple-600">Try saying</div>
-              <div className="mt-4 flex flex-col gap-3">
-                {SAMPLE_VOICE_PROMPTS.map(prompt => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    onClick={() => handleSamplePrompt(prompt)}
-                    className="w-full rounded-full border border-purple-200 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.3em] text-purple-600 transition hover:border-purple-400 hover:bg-purple-50"
-                  >
-                    {prompt}
-                  </button>
-                ))}
+              <button
+                onClick={handleConnect}
+                disabled={isConnecting}
+                className="rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-8 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-white transition hover:from-emerald-600 hover:to-teal-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isConnecting ? "Connecting..." : "🎙️ Start Conversation"}
+              </button>
+
+              <div className="mt-8 w-full max-w-md">
+                <h3 className="text-xs uppercase tracking-[0.25em] text-slate-500 mb-3">Try Saying:</h3>
+                <div className="space-y-2">
+                  {SAMPLE_VOICE_PROMPTS.map((prompt, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSamplePrompt(prompt)}
+                      disabled={!token}
+                      className="w-full text-left rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      💬 "{prompt}"
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-8 p-4 bg-emerald-50 border border-emerald-200 rounded-xl w-full max-w-md">
+                <p className="text-xs font-semibold text-emerald-800 mb-2">✅ NEW: AgentServer Pattern</p>
+                <ul className="text-xs text-emerald-700 space-y-1">
+                  <li>• inference.STT/LLM/TTS unified API</li>
+                  <li>• Typed userdata with RunContext</li>
+                  <li>• No schema validation errors</li>
+                  <li>• Turn detection + max_tool_steps</li>
+                  <li>• Following drive-thru reference patterns</li>
+                  <li>• Full card rendering for tool results</li>
+                </ul>
               </div>
             </div>
-          </div>
-
-          <div
-            ref={chatContainerRef}
-            className="h-[460px] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-6"
+          </section>
+        ) : (
+          <LiveKitRoom
+            token={token}
+            serverUrl={livekitUrl}
+            connect={true}
+            audio={true}
+            video={false}
+            onDisconnected={handleDisconnect}
+            className="h-full"
           >
+            <VoiceAssistantControls 
+              onDisconnect={handleDisconnect}
+              onMessage={(msg) => {
+                setMessages(prev => [...prev, msg]);
+                if (msg.toolName && msg.toolResult) {
+                  setDebugExecutions(prev => [...prev, {
+                    toolName: msg.toolName!,
+                    payload: msg.toolResult,
+                    timestamp: Date.now(),
+                  }]);
+                }
+              }}
+              onAgentLog={(log) => {
+                setAgentLogs(prev => [...prev, log]);
+              }}
+            />
+            <RoomAudioRenderer />
+          </LiveKitRoom>
+        )}
+
+        {/* Chat History with Tool Output Cards */}
+        {token && (
+          <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 mb-4">
+              Conversation History
+            </h2>
             {messages.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center text-center text-slate-400">
-                <div className="text-5xl mb-4">🎙️</div>
-                <p className="text-lg font-semibold text-slate-700 mb-2">Ready to Order!</p>
-                <p className="text-sm text-slate-600 max-w-md">
-                  Click "Start Voice Session" above, then click the microphone button to enable your mic.
-                </p>
-                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200 max-w-md text-left">
-                  <p className="text-xs font-semibold text-blue-900 mb-2">What will happen:</p>
-                  <ol className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
-                    <li>Status box shows "🎤 Listening" when you can speak</li>
-                    <li>Speak naturally: "I want Thai food" or "Show me the menu"</li>
-                    <li>Agent processes (🤔 Processing...)</li>
-                    <li>Agent responds with voice (🗣️ Agent speaking...)</li>
-                    <li>Food cards appear automatically below</li>
-                  </ol>
-                </div>
-                <p className="mt-4 text-xs text-slate-500">
-                  Python Agent • Built-in VAD • Interruption Handling • ~400ms Latency
-                </p>
+              <div className="text-center py-12 text-slate-400">
+                <div className="text-4xl mb-3">💬</div>
+                <p className="text-sm">Your conversation will appear here</p>
+                <p className="text-xs mt-1">Voice transcripts and AI responses with visual cards</p>
               </div>
             ) : (
-              <div className="space-y-6">
-                {messages.map((message, index) => (
-                  <div key={index} className="space-y-2">
-                    <div className={`text-xs uppercase tracking-[0.35em] ${
-                      message.role === 'user' ? 'text-purple-600' : 'text-slate-500'
+              <div 
+                ref={chatContainerRef}
+                className="space-y-4 max-h-[600px] overflow-y-auto"
+              >
+                {messages.map((msg, idx) => (
+                  <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`${msg.role === 'user' ? 'max-w-lg' : 'w-full'} rounded-xl p-4 ${
+                      msg.role === 'user' 
+                        ? 'bg-emerald-100 text-emerald-900' 
+                        : 'bg-slate-100 text-slate-900'
                     }`}>
-                      {message.role === 'user' ? 'You' : 'Native Agent'}
+                      <p className="text-sm">{msg.content}</p>
+                      {msg.toolName && msg.toolResult && (
+                        <div className="mt-3">
+                          {renderToolOutput(msg.toolName, msg.toolResult)}
+                        </div>
+                      )}
                     </div>
-                    <div className="text-sm leading-relaxed text-slate-700">
-                      {message.content}
-                    </div>
-                    
-                    {message.toolName && message.toolResult && (
-                      <div className="mt-4">
-                        {renderToolOutput(message.toolName, message.toolResult)}
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
             )}
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* Comparison Note */}
-        <section className="rounded-3xl border border-purple-100 bg-purple-50/50 p-6 shadow-sm">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-purple-600 mb-3">Native vs Manual LiveKit</h2>
+        <section className="hidden rounded-3xl border border-emerald-100 bg-emerald-50/50 p-6 shadow-sm">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-600 mb-3">AgentServer vs Native (Old)</h2>
           <div className="grid md:grid-cols-2 gap-6 text-sm">
             <div>
-              <h3 className="font-semibold text-slate-900 mb-2">Native Pipeline (This Page)</h3>
+              <h3 className="font-semibold text-slate-900 mb-2">AgentServer Pattern (This Page)</h3>
               <ul className="text-slate-600 space-y-1 text-xs">
-                <li>• Python LiveKit Agents SDK</li>
-                <li>• Automatic STT → LLM → TTS orchestration</li>
-                <li>• Built-in voice activity detection (Silero)</li>
-                <li>• Automatic interruption handling</li>
-                <li>• Declarative function tools (@llm.function_tool)</li>
-                <li>• ~380 lines of Python code</li>
+                <li>• AgentServer with @server.rtc_session</li>
+                <li>• inference.STT/LLM/TTS unified API</li>
+                <li>• Typed userdata with RunContext</li>
+                <li>• No parameter defaults (schema validation works)</li>
+                <li>• Turn detection + max_tool_steps</li>
+                <li>• ~461 lines of Python code</li>
               </ul>
             </div>
             <div>
-              <h3 className="font-semibold text-slate-900 mb-2">Manual Implementation</h3>
+              <h3 className="font-semibold text-slate-900 mb-2">Old Native Pattern (Broken)</h3>
               <ul className="text-slate-600 space-y-1 text-xs">
-                <li>• TypeScript with LiveKit Client SDK</li>
-                <li>• Manual OpenAI API orchestration</li>
-                <li>• Manual VAD implementation</li>
-                <li>• Manual interruption detection</li>
-                <li>• SSE-based tool dispatch</li>
-                <li>• ~590 lines of TypeScript code</li>
+                <li>• Old CLI worker pattern</li>
+                <li>• Direct plugin imports (openai.STT)</li>
+                <li>• Global state, no typed context</li>
+                <li>• Parameter defaults break schema</li>
+                <li>• No turn detection</li>
+                <li>• ~446 lines of Python code (archived)</li>
               </ul>
             </div>
           </div>
           
-          <div className="mt-4 p-3 bg-purple-100 rounded-lg">
-            <p className="text-xs text-purple-800">
-              <strong>Native Benefits:</strong> Lower latency (~400ms vs ~600ms), simpler code, production-ready out of the box, automatic agent management
+          <div className="mt-4 p-3 bg-emerald-100 rounded-lg">
+            <p className="text-xs text-emerald-800">
+              <strong>AgentServer Benefits:</strong> No schema errors, follows official patterns, production-ready, automatic tool result handling
             </p>
           </div>
         </section>
@@ -635,14 +678,15 @@ export default function NativeConcierge() {
         {/* Debug Panel */}
         <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
           <DebugPanel 
-            toolExecutions={debugExecutions} 
+            toolExecutions={debugExecutions}
+            agentLogs={agentLogs}
             isProduction={process.env.NODE_ENV === 'production'}
           />
         </section>
       </main>
       
       {/* Cart Modal */}
-      {cartModalOpen ? (
+      {cartModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
@@ -656,7 +700,7 @@ export default function NativeConcierge() {
                 <button
                   type="button"
                   onClick={closeCartModal}
-                  className="rounded-full border border-slate-200 px-3 py-1 text-xs uppercase tracking-[0.3em] text-slate-600 transition hover:border-purple-400 hover:text-purple-600"
+                  className="rounded-full border border-slate-200 px-3 py-1 text-xs uppercase tracking-[0.3em] text-slate-600 transition hover:border-emerald-400 hover:text-emerald-600"
                 >
                   Close
                 </button>
@@ -686,7 +730,7 @@ export default function NativeConcierge() {
                           </span>
                           <span className="font-semibold text-slate-900">{formatMoney(item.totalPrice)}</span>
                         </div>
-                        {item.options && item.options.length > 0 ? (
+                        {item.options && item.options.length > 0 && (
                           <ul className="mt-1 ml-4 list-disc space-y-1 text-[11px] text-slate-500">
                             {item.options.map(option => (
                               <li key={option.id ?? `${item.id}-${option.label}`}>
@@ -697,10 +741,10 @@ export default function NativeConcierge() {
                               </li>
                             ))}
                           </ul>
-                        ) : null}
-                        {item.instructions ? (
+                        )}
+                        {item.instructions && (
                           <div className="mt-1 text-[11px] italic text-slate-500">"{item.instructions}"</div>
-                        ) : null}
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -719,7 +763,7 @@ export default function NativeConcierge() {
                 <button
                   type="button"
                   onClick={handleClearOrders}
-                  className="rounded-full border border-slate-200 px-3 py-1 text-[11px] uppercase tracking-[0.25em] text-slate-500 transition hover:border-purple-400 hover:text-purple-600"
+                  className="rounded-full border border-slate-200 px-3 py-1 text-[11px] uppercase tracking-[0.25em] text-slate-500 transition hover:border-emerald-400 hover:text-emerald-600"
                   disabled={ordersLoading}
                 >
                   Clear Orders
@@ -740,7 +784,7 @@ export default function NativeConcierge() {
                       <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
                         {order.createdAt ? new Date(order.createdAt).toLocaleString() : 'Recent order'}
                       </div>
-                      {order.items && order.items.length > 0 ? (
+                      {order.items && order.items.length > 0 && (
                         <ul className="mt-2 space-y-1 text-[11px] text-slate-600">
                           {order.items.map(item => (
                             <li key={item.id}>
@@ -751,7 +795,7 @@ export default function NativeConcierge() {
                             </li>
                           ))}
                         </ul>
-                      ) : null}
+                      )}
                     </div>
                   ))}
                 </div>
@@ -761,15 +805,15 @@ export default function NativeConcierge() {
                 </div>
               )}
 
-              {cartActionMessage ? (
-                <div className="rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-[11px] uppercase tracking-[0.25em] text-purple-600">
+              {cartActionMessage && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] uppercase tracking-[0.25em] text-emerald-600">
                   {cartActionMessage}
                 </div>
-              ) : null}
+              )}
             </div>
           </div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
@@ -779,10 +823,12 @@ export default function NativeConcierge() {
  */
 function VoiceAssistantControls({ 
   onDisconnect, 
-  onMessage 
+  onMessage,
+  onAgentLog
 }: { 
   onDisconnect: () => void;
   onMessage: (msg: ChatMessage) => void;
+  onAgentLog: (log: { type: 'user_said' | 'agent_saying' | 'tool_called' | 'tool_result' | 'info' | 'error'; message: string; timestamp: number; details?: any }) => void;
 }) {
   const { state, audioTrack } = useVoiceAssistant();
   const connectionState = useConnectionState();
@@ -791,13 +837,25 @@ function VoiceAssistantControls({
   const isConnected = connectionState === ConnectionState.Connected;
   const [agentTranscript, setAgentTranscript] = React.useState<string>('');
   const [userTranscript, setUserTranscript] = React.useState<string>('');
-  const [isMicEnabled, setIsMicEnabled] = React.useState(false);
+  const [isMicEnabled, setIsMicEnabled] = React.useState(true); // Start with mic enabled by default
   const [agentJoined, setAgentJoined] = React.useState(false);
   const [showAgentJoinedBanner, setShowAgentJoinedBanner] = React.useState(false);
   const [agentError, setAgentError] = React.useState<{type: string, message: string, timestamp: number} | null>(null);
 
-  // Get local microphone track for audio visualization
   const micTrack = localParticipant?.getTrackPublication(Track.Source.Microphone)?.track;
+  
+  // Auto-enable microphone when connected
+  React.useEffect(() => {
+    if (isConnected && room && !isMicEnabled) {
+      console.log('[AGENTSERVER] 🎤 Auto-enabling microphone on connection...');
+      room.localParticipant.setMicrophoneEnabled(true).then(() => {
+        setIsMicEnabled(true);
+        console.log('[AGENTSERVER] ✅ Microphone auto-enabled');
+      }).catch(err => {
+        console.error('[AGENTSERVER] ❌ Failed to auto-enable mic:', err);
+      });
+    }
+  }, [isConnected, room, isMicEnabled]);
 
   // Toggle microphone
   const toggleMicrophone = React.useCallback(async () => {
@@ -805,21 +863,19 @@ function VoiceAssistantControls({
     
     try {
       if (isMicEnabled) {
-        // Disable microphone
-        console.log('[NATIVE] 🔇 Disabling microphone...');
+        console.log('[AGENTSERVER] 🔇 Disabling microphone...');
         await room.localParticipant.setMicrophoneEnabled(false);
         setIsMicEnabled(false);
-        console.log('[NATIVE] ✅ Microphone disabled');
+        console.log('[AGENTSERVER] ✅ Microphone disabled');
       } else {
-        // Enable microphone
-        console.log('[NATIVE] 🎤 Enabling microphone...');
+        console.log('[AGENTSERVER] 🎤 Enabling microphone...');
         await room.localParticipant.setMicrophoneEnabled(true);
         setIsMicEnabled(true);
-        console.log('[NATIVE] ✅ Microphone enabled');
-        console.log('[NATIVE] 👂 Agent should now be listening...');
+        console.log('[AGENTSERVER] ✅ Microphone enabled');
+        console.log('[AGENTSERVER] 👂 Agent should now be listening...');
       }
     } catch (error) {
-      console.error('[NATIVE] ❌ Error toggling microphone:', error);
+      console.error('[AGENTSERVER] ❌ Error toggling microphone:', error);
     }
   }, [room, isMicEnabled]);
 
@@ -827,90 +883,93 @@ function VoiceAssistantControls({
   React.useEffect(() => {
     if (!room) return;
 
-    console.log('[NATIVE] 📡 Setting up data message listener...');
+    console.log('[AGENTSERVER] 📡 Setting up data message listener...');
 
     const handleData = (payload: Uint8Array, participant?: any) => {
       try {
         const text = new TextDecoder().decode(payload);
-        console.log('[NATIVE] 📩 Received data message:', text);
+        console.log('[AGENTSERVER] 📩 Received data message:', text);
         const data = JSON.parse(text);
         
         // Handle different message types from the Python agent
         if (data.type === 'user_transcript') {
-          console.log('[NATIVE] 🎤 User transcript:', data.text, '(final:', data.is_final, ')');
+          console.log('[AGENTSERVER] 🎤 User transcript:', data.text, '(final:', data.is_final, ')');
           setUserTranscript(data.text);
           if (data.is_final) {
             onMessage({ role: 'user', content: data.text });
             setTimeout(() => setUserTranscript(''), 500);
           }
         } else if (data.type === 'agent_transcript' || data.type === 'agent_response') {
-          console.log('[NATIVE] 🗣️ Agent response:', data.text, '(final:', data.is_final, ')');
+          console.log('[AGENTSERVER] 🗣️ Agent response:', data.text, '(final:', data.is_final, ')');
           setAgentTranscript(data.text);
           if (data.is_final) {
             onMessage({ role: 'assistant', content: data.text });
             setTimeout(() => setAgentTranscript(''), 500);
           }
         } else if (data.type === 'agent_error') {
-          // Agent error received from Python
-          console.error('[NATIVE] ❌ Agent error received:', data);
+          console.error('[AGENTSERVER] ❌ Agent error received:', data);
           setAgentError({
             type: data.error_type || 'Unknown Error',
             message: data.error_message || 'An unknown error occurred',
             timestamp: data.timestamp || Date.now()
           });
           
-          // Show error in chat
           onMessage({ 
             role: 'assistant', 
             content: `⚠️ Agent Error (${data.error_type || 'Unknown'}): ${data.error_message || 'The agent encountered an error. Please check logs.'}` 
           });
         } else if (data.type === 'tool_call') {
-          console.log('[NATIVE] 🔧 Tool call:', data.tool_name);
-          // Agent is executing a tool
+          console.log('[AGENTSERVER] 🔧 Tool call:', data.tool_name);
           onMessage({ 
             role: 'assistant', 
             content: `Executing: ${data.tool_name}`,
             toolName: data.tool_name,
             toolResult: data.result 
           });
+        } else if (data.type === 'agent_log') {
+          // NEW: Handle agent logs for debug panel
+          console.log('[AGENTSERVER] 📝 Agent log:', data);
+          onAgentLog({
+            type: data.log_type || 'info',
+            message: data.message || '',
+            timestamp: data.timestamp || Date.now(),
+            details: data.details
+          });
         }
       } catch (e) {
-        // Ignore non-JSON data
-        console.log('[NATIVE] ℹ️ Non-JSON data received (likely audio)');
+        console.log('[AGENTSERVER] ℹ️ Non-JSON data received (likely audio)');
       }
     };
 
     room.on('dataReceived', handleData);
-    console.log('[NATIVE] ✅ Data listener registered');
+    console.log('[AGENTSERVER] ✅ Data listener registered');
     
     return () => {
-      console.log('[NATIVE] 🧹 Cleaning up data listener');
+      console.log('[AGENTSERVER] 🧹 Cleaning up data listener');
       room.off('dataReceived', handleData);
     };
   }, [room, onMessage]);
 
   // Log state changes
   React.useEffect(() => {
-    console.log('[NATIVE] 🔄 Voice assistant state changed:', state);
+    console.log('[AGENTSERVER] 🔄 Voice assistant state changed:', state);
   }, [state]);
 
   // Detect when Python agent joins the room
   React.useEffect(() => {
     if (!room) return;
 
-    console.log('[NATIVE] 🔍 Setting up agent join detector...');
+    console.log('[AGENTSERVER] 🔍 Setting up agent join detector...');
 
     const handleParticipantConnected = (participant: any) => {
-      console.log('[NATIVE] 👤 Participant connected:', participant.identity);
+      console.log('[AGENTSERVER] 👤 Participant connected:', participant.identity);
       
-      // Check if it's the Python agent (agent identity typically contains 'agent')
       if (participant.identity && (participant.identity.includes('agent') || participant.identity.includes('food-concierge'))) {
-        console.log('[NATIVE] 🤖 Python agent joined the room!');
-        console.log('[NATIVE] ✅ Agent ready - you can now speak');
+        console.log('[AGENTSERVER] 🤖 Python agent joined the room!');
+        console.log('[AGENTSERVER] ✅ Agent ready - you can now speak');
         setAgentJoined(true);
         setShowAgentJoinedBanner(true);
         
-        // Auto-hide banner after 5 seconds
         setTimeout(() => {
           setShowAgentJoinedBanner(false);
         }, 5000);
@@ -918,19 +977,19 @@ function VoiceAssistantControls({
     };
 
     const handleParticipantDisconnected = (participant: any) => {
-      console.log('[NATIVE] 👋 Participant disconnected:', participant.identity);
+      console.log('[AGENTSERVER] 👋 Participant disconnected:', participant.identity);
       if (participant.identity && (participant.identity.includes('agent') || participant.identity.includes('food-concierge'))) {
-        console.log('[NATIVE] ⚠️ Python agent disconnected');
+        console.log('[AGENTSERVER] ⚠️ Python agent disconnected');
         setAgentJoined(false);
       }
     };
 
     room.on('participantConnected', handleParticipantConnected);
     room.on('participantDisconnected', handleParticipantDisconnected);
-    console.log('[NATIVE] ✅ Agent join detector registered');
+    console.log('[AGENTSERVER] ✅ Agent join detector registered');
     
     return () => {
-      console.log('[NATIVE] 🧹 Cleaning up agent join detector');
+      console.log('[AGENTSERVER] 🧹 Cleaning up agent join detector');
       room.off('participantConnected', handleParticipantConnected);
       room.off('participantDisconnected', handleParticipantDisconnected);
     };
@@ -1013,7 +1072,7 @@ function VoiceAssistantControls({
         </button>
       </div>
 
-      {/* Audio Level Visualization - Shows mic is capturing audio */}
+      {/* Audio Level Visualization */}
       {isMicEnabled && micTrack && localParticipant && (
         <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-green-50 to-green-100 border-2 border-green-300">
           <div className="text-xs uppercase tracking-wide font-semibold text-green-700 mb-2 text-center">
@@ -1041,7 +1100,7 @@ function VoiceAssistantControls({
       )}
 
       {/* Voice State Indicator */}
-      {isMicEnabled && (
+      {isMicEnabled ? (
         <div className={`mb-4 h-24 rounded-xl flex flex-col items-center justify-center transition-all duration-300 ${
           state === "listening" ? 'bg-gradient-to-r from-blue-200 to-blue-300' :
           state === "thinking" ? 'bg-gradient-to-r from-amber-200 to-amber-300 animate-pulse' :
@@ -1061,7 +1120,6 @@ function VoiceAssistantControls({
             {state === "idle" && "Ready - Start talking"}
           </p>
           
-          {/* Show real-time transcription */}
           {userTranscript && state === "listening" && (
             <p className="mt-2 text-sm italic text-slate-700 max-w-xs text-center">
               "{userTranscript}"
@@ -1072,6 +1130,12 @@ function VoiceAssistantControls({
               "{agentTranscript}"
             </p>
           )}
+        </div>
+      ) : (
+        <div className="mb-4 h-24 rounded-xl flex flex-col items-center justify-center bg-gradient-to-r from-gray-200 to-gray-300">
+          <p className="text-3xl mb-2">🔇</p>
+          <p className="text-lg font-bold text-slate-900">Microphone Off</p>
+          <p className="text-xs text-slate-600">Click button above to enable</p>
         </div>
       )}
 
@@ -1084,6 +1148,7 @@ function VoiceAssistantControls({
             <li>Allow browser to access your microphone</li>
             <li>Speak naturally - say "I want Thai food"</li>
             <li>Watch the status change as agent responds</li>
+            <li>Food cards appear automatically below</li>
           </ol>
         </div>
       )}
@@ -1102,7 +1167,7 @@ function VoiceAssistantControls({
       </button>
 
       <div className="mt-4 text-center text-xs text-slate-500">
-        <p>Python agent • STT → LLM → TTS • ~400ms latency</p>
+        <p>Python AgentServer • STT → LLM → TTS • v1.4.1+ Pattern</p>
       </div>
     </div>
   );

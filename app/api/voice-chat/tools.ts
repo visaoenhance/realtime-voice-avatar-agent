@@ -125,8 +125,8 @@ export const voiceTools = {
             const { data, error } = await client
               .from('fc_menu_items')
               .select(`
-                id, slug, name, description, base_price, calories, rating, tags, image, 
-                section:section_id (id, title), 
+                id, slug, name, description, base_price, calories, dietary_tags, image, 
+                section:section_id (id, name), 
                 restaurant:restaurant_id (id, slug, name)
               `)
               .eq('is_available', true)
@@ -147,10 +147,9 @@ export const voiceTools = {
                   name: item.name,
                   description: item.description,
                   price: item.base_price ?? 0,
-                  tags: item.tags ?? [],
+                  tags: item.dietary_tags ?? [],
                   calories: item.calories,
-                  rating: item.rating,
-                  sectionTitle: sectionRelation?.title ?? null,
+                  sectionTitle: sectionRelation?.name ?? null,
                   restaurantId: restaurantRelation?.id ?? null,
                   restaurantSlug: restaurantRelation?.slug ?? null,
                   restaurantName: restaurantRelation?.name ?? null,

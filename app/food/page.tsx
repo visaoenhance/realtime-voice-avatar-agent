@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { FALLBACK_RESTAURANTS, SampleRestaurant } from '@/data/foodCourtSamples';
 import { supabase } from '@/lib/supabaseServer';
-import HomeCartControls from './components/HomeCartControls';
+import LandingPageHeader from './components/LandingPageHeader';
 
 type RestaurantCard = {
   id: string;
@@ -194,50 +194,20 @@ export default async function FoodCourtHome() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-6 md:flex-row md:items-center md:justify-between">
-          <div>
-            <Link
-              href="/"
-              className="font-display text-3xl tracking-[0.3em] text-emerald-600 transition hover:text-emerald-500"
+      <LandingPageHeader />
+      <div className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-6xl snap-x gap-3 overflow-x-auto px-6 py-4 text-sm font-semibold text-slate-600">
+          {CATEGORY_CHIPS.map(category => (
+            <span
+              key={category.label}
+              className="whitespace-nowrap rounded-full border border-slate-200 bg-white px-4 py-2 transition hover:border-emerald-300 hover:text-emerald-600"
             >
-              Food Court
-            </Link>
-            <div className="mt-2 flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-slate-500">
-              <span>Delivery</span>
-              <span className="h-1 w-1 rounded-full bg-slate-300" />
-              <span>3084 Coral Vine Ln</span>
-              <span className="h-1 w-1 rounded-full bg-slate-300" />
-              <span>Now</span>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-[0.3em]">
-            <Link href="/food/concierge" className="text-slate-600 transition hover:text-slate-900">
-              Concierge (AI-SDK)
-            </Link>
-            <Link href="/food/concierge-livekit" className="text-slate-600 transition hover:text-slate-900">
-              Concierge (LiveKit)
-            </Link>
-            <Link href="/food/concierge-native" className="text-slate-600 transition hover:text-slate-900">
-              Concierge (LiveKit-Native)
-            </Link>
-            <HomeCartControls />
-          </div>
+              <span className="mr-2">{category.emoji}</span>
+              {category.label}
+            </span>
+          ))}
         </div>
-        <div className="border-t border-slate-200 bg-white">
-          <div className="mx-auto flex max-w-6xl snap-x gap-3 overflow-x-auto px-6 py-4 text-sm font-semibold text-slate-600">
-            {CATEGORY_CHIPS.map(category => (
-              <span
-                key={category.label}
-                className="whitespace-nowrap rounded-full border border-slate-200 bg-white px-4 py-2 transition hover:border-emerald-300 hover:text-emerald-600"
-              >
-                <span className="mr-2">{category.emoji}</span>
-                {category.label}
-              </span>
-            ))}
-          </div>
-        </div>
-      </header>
+      </div>
 
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 py-10">
         <section className="grid gap-4 md:grid-cols-3">

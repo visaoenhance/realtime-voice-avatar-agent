@@ -548,19 +548,17 @@ export default function LiveKitConciergePage({}: LiveKitConciergePageProps) {
             <Link href="/" className="font-display text-3xl tracking-[0.35em] text-emerald-600">
               Food Court
             </Link>
-            <nav className="hidden gap-6 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 md:flex">
-              <Link href="/food/concierge" className="transition hover:text-slate-900">Concierge (AI-SDK)</Link>
-              <span className="text-emerald-600">Concierge (LiveKit)</span>
-              <Link href="/food/concierge-native" className="transition hover:text-slate-900">Concierge (LiveKit-Native)</Link>
-              <button
-                type="button"
-                onClick={openCartModal}
-                className="transition hover:text-slate-900"
-              >
-                Cart {totalCartItems > 0 && `(${totalCartItems})`}
-              </button>
-            </nav>
+            <div className="hidden md:flex items-center gap-2 text-xs text-slate-600">
+              <span className="text-slate-400">📍</span>
+              <span>1234 Main Street, Orlando, FL</span>
+            </div>
           </div>
+          <button
+            className="hidden md:flex rounded-full border border-slate-300 px-6 py-2 text-xs uppercase tracking-[0.3em] text-slate-600 transition hover:border-emerald-400 hover:text-emerald-600 items-center gap-2"
+            onClick={openCartModal}
+          >
+            🛒 Cart{totalCartItems > 0 ? ` (${totalCartItems})` : ''}
+          </button>
           <div className="flex items-center gap-4 text-xs md:hidden">
             <button
               type="button"
