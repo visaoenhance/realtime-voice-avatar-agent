@@ -50,8 +50,8 @@ Once your project is ready:
 1. Go to **Project Settings** → **API**
 2. Copy these values:
    - **Project URL**: `https://xxxxxxxxxxxxx.supabase.co`
-   - **anon/public key**: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`
-   - **service_role key**: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` (keep secret!)
+   - **anon/public key**: `eyJh...` (long JWT string)
+   - **service_role key**: `eyJh...` (long JWT string - keep secret!)
 
 ## Step 4: Add Remote Credentials to .env.local
 
@@ -60,12 +60,12 @@ Add these lines to your `.env.local` file:
 ```bash
 # Remote Supabase (Production)
 REMOTE_SUPABASE_URL=https://xxxxxxxxxxxxx.supabase.co
-REMOTE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-REMOTE_SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+REMOTE_SUPABASE_ANON_KEY=your-remote-anon-key-here
+REMOTE_SUPABASE_SERVICE_ROLE_KEY=your-remote-service-role-key-here
 
 # Keep your local Supabase vars too
 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-local-anon-key>
 # ... etc
 ```
 
@@ -141,11 +141,11 @@ Update your `.env.local` to use remote Supabase:
 ```bash
 # Change these to remote values:
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc... (remote anon key)
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-remote-anon-key-here
 
 # Also update for server-side:
 SUPABASE_URL=https://xxxxxxxxxxxxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGc... (remote service role key)
+SUPABASE_SERVICE_ROLE_KEY=your-remote-service-role-key-here
 ```
 
 ## Step 8: Restart and Test
@@ -188,9 +188,9 @@ To switch back to local development:
 ```bash
 # In .env.local, change back to:
 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-local-anon-key>
 SUPABASE_URL=http://127.0.0.1:54321
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+SUPABASE_SERVICE_ROLE_KEY=<your-local-service-role-key>
 
 # Restart servers
 ./start-dev.sh
