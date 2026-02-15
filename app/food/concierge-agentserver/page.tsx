@@ -597,6 +597,7 @@ export default function AgentServerConcierge() {
               onAgentLog={(log) => {
                 setAgentLogs(prev => [...prev, log]);
               }}
+              onCartUpdate={fetchCartFromApi}
             />
             <RoomAudioRenderer />
           </LiveKitRoom>
@@ -823,11 +824,13 @@ export default function AgentServerConcierge() {
  */
 function VoiceAssistantControls({ 
   onDisconnect, 
-  onMessage,
-  onAgentLog
+  onMessage,,
+  onCartUpdate
 }: { 
   onDisconnect: () => void;
   onMessage: (msg: ChatMessage) => void;
+  onAgentLog: (log: { type: 'user_said' | 'agent_saying' | 'tool_called' | 'tool_result' | 'info' | 'error'; message: string; timestamp: number; details?: any }) => void;
+  onCartUpdate: (
   onAgentLog: (log: { type: 'user_said' | 'agent_saying' | 'tool_called' | 'tool_result' | 'info' | 'error'; message: string; timestamp: number; details?: any }) => void;
 }) {
   const { state, audioTrack } = useVoiceAssistant();
@@ -924,6 +927,12 @@ function VoiceAssistantControls({
             role: 'assistant', 
             content: `Executing: ${data.tool_name}`,
             toolName: data.tool_name,
+          
+          // Refresh cart when items are added
+          if (data.tool_name === 'quick_add_to_cart' || data.tool_name === 'quickAddToCart' || data.tool_name === 'addItemToCart') {
+            console.log('[AGENTSERVER] 🛒 Cart updated, refreshing count...');
+            setTimeout(() => onCartUpdate(), 500); // Small delay to ensure backend has updated
+          }
             toolResult: data.result 
           });
         } else if (data.type === 'agent_log') {
@@ -940,7 +949,7 @@ function VoiceAssistantControls({
         console.log('[AGENTSERVER] ℹ️ Non-JSON data received (likely audio)');
       }
     };
-
+, onCartUpdate
     room.on('dataReceived', handleData);
     console.log('[AGENTSERVER] ✅ Data listener registered');
     
