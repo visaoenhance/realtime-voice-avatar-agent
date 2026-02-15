@@ -323,6 +323,7 @@ export default function AgentServerConcierge() {
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [cartActionMessage, setCartActionMessage] = useState<string | null>(null);
+  const [livekitCartCount, setLivekitCartCount] = useState<number | null>(null); // Real-time cart count from voice agent
   const cartFetchInFlightRef = useRef(false);
   const ordersFetchInFlightRef = useRef(false);
   
@@ -533,7 +534,7 @@ export default function AgentServerConcierge() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <FoodCourtHeader 
         pageTitle="Voice Concierge (AgentServer)"
-        totalCartItems={totalCartItems}
+        totalCartItems={livekitCartCount ?? totalCartItems}
         onCartClick={openCartModal}
       />
 
@@ -650,7 +651,10 @@ export default function AgentServerConcierge() {
               onAgentLog={(log) => {
                 setAgentLogs(prev => [...prev, log]);
               }}
-              onCartUpdate={fetchCartFromApi}
+              onCartUpdate={(count) => {
+                console.log('[AGENTSERVER] 📊 Updating cart count from LiveKit:', count);
+                setLivekitCartCount(count);
+              }}
             />
             <RoomAudioRenderer />
           </LiveKitRoom>
@@ -884,7 +888,7 @@ function VoiceAssistantControls({
   onDisconnect: () => void;
   onMessage: (msg: ChatMessage) => void;
   onAgentLog: (log: { type: 'user_said' | 'agent_saying' | 'tool_called' | 'tool_result' | 'info' | 'error'; message: string; timestamp: number; details?: any }) => void;
-  onCartUpdate: () => void;
+  onCartUpdate: (count: number) => void;
 }) {
   const { state, audioTrack } = useVoiceAssistant();
   const connectionState = useConnectionState();
@@ -983,10 +987,20 @@ function VoiceAssistantControls({
             toolResult: data.result 
           });
           
-          // Refresh cart when items are added
-          if (data.tool_name === 'quick_add_to_cart' || data.tool_name === 'quickAddToCart' || data.tool_name === 'addItemToCart') {
-            console.log('[AGENTSERVER] 🛒 Cart updated, refreshing count...');
-            setTimeout(() => onCartUpdate(), 500); // Small delay to ensure backend has updated
+          // Update cart count from LiveKit data
+          const cartTools = ['quick_add_to_cart', 'quickAddToCart', 'addItemToCart', 
+                              'quick_view_cart', 'quickViewCart', 'viewCart',
+                              'remove_from_cart', 'removeFromCart',
+                              'update_cart_quantity', 'updateCartQuantity'];
+          
+          if (cartTools.includes(data.tool_name) && data.result?.cart?.items) {
+            const itemCount = data.result.cart.items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+            console.log('[AGENTSERVER] 🛒 Cart count from LiveKit:', itemCount);
+            onCartUpdate(itemCount);
+          } else if (data.tool_name === 'quick_checkout' || data.tool_name === 'quickCheckout') {
+            // Cart cleared after checkout
+            console.log('[AGENTSERVER] 🛒 Cart cleared after checkout');
+            onCartUpdate(0);
           }
         } else if (data.type === 'agent_log') {
           // NEW: Handle agent logs for debug panel
