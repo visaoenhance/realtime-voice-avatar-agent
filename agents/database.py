@@ -37,6 +37,18 @@ print(f"   Pexels API: {'✓ Configured' if PEXELS_API_KEY else '✗ Not configu
 voice_cart: Optional[Dict[str, Any]] = None
 
 
+def reset_voice_cart() -> None:
+    """Reset the voice cart to None - useful for debugging and between sessions"""
+    global voice_cart
+    old_cart_items = len(voice_cart.get("items", [])) if voice_cart else 0
+    old_cart_total = voice_cart.get("total", 0) if voice_cart else 0
+    voice_cart = None
+    if old_cart_items > 0:
+        print(f"🔄 Voice cart reset: cleared {old_cart_items} items (${old_cart_total:.2f})")
+    else:
+        print("🔄 Voice cart reset: was already empty")
+
+
 def format_currency(amount: float) -> str:
     """Format number as USD currency"""
     return f"${amount:.2f}"
@@ -234,16 +246,52 @@ async def get_user_profile(profile_id: str = None) -> Dict[str, Any]:
 
 async def search_menu_items(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
     """
-    Search for menu items across all restaurants
+    Search for menu items across all restaurants using improved multi-word matching.
+    - Searches in both name and description fields
+    - Handles multi-word queries by searching for ANY word match
+    - Example: "New York style cheesecake" will find "Classic New York Cheesecake"
+    
     Mirrors: voice-chat/tools.ts -> findFoodItem
     """
     try:
-        # Query Supabase
-        response = supabase.table("fc_menu_items").select(
-            "id, slug, name, description, base_price, calories, dietary_tags, image, "
-            "section:section_id(id, name), "
-            "restaurant:restaurant_id(id, slug, name)"
-        ).eq("is_available", True).ilike("name", f"%{query}%").order("name").limit(max_results * 2).execute()
+        # Split query into individual words for better matching
+        # "New York style cheesecake" → ["New", "York", "style", "cheesecake"]
+        words = query.strip().split()
+        
+        # Build OR conditions for each word (search in both name and description)
+        # This allows finding items that contain ANY of the query words
+        search_filters = []
+        for word in words:
+            if len(word) >= 3:  # Skip very short words like "a", "of", etc.
+                # Escape single quotes for SQL
+                safe_word = word.replace("'", "''")
+                search_filters.append(f"name.ilike.%{safe_word}%,description.ilike.%{safe_word}%")
+        
+        if not search_filters:
+            # Fallback to original simple search if no valid words
+            response = supabase.table("fc_menu_items").select(
+                "id, slug, name, description, base_price, calories, dietary_tags, image, "
+                "section:section_id(id, name), "
+                "restaurant:restaurant_id(id, slug, name)"
+            ).eq("is_available", True).ilike("name", f"%{query}%").order("name").limit(max_results * 2).execute()
+        else:
+            # Use first word as primary filter, then rank results by how many words match
+            primary_word = words[0].replace("'", "''")
+            response = supabase.table("fc_menu_items").select(
+                "id, slug, name, description, base_price, calories, dietary_tags, image, "
+                "section:section_id(id, name), "
+                "restaurant:restaurant_id(id, slug, name)"
+            ).eq("is_available", True).or_(f"name.ilike.%{primary_word}%,description.ilike.%{primary_word}%").order("name").limit(max_results * 5).execute()
+            
+            # Rank results by how many query words they contain
+            if response.data:
+                def score_item(item):
+                    text = f"{item.get('name', '')} {item.get('description', '')}".lower()
+                    return sum(1 for word in words if word.lower() in text)
+                
+                # Sort by score (descending) and take top results
+                response.data.sort(key=score_item, reverse=True)
+                response.data = response.data[:max_results * 2]
         
         if not response.data:
             return []
@@ -561,6 +609,15 @@ def add_to_voice_cart(item_name: str, restaurant_name: str = None, quantity: int
     total = subtotal + delivery_fee
     total_quantity = sum(item["quantity"] for item in existing_items)
     
+    # DEBUG: Log cart calculation
+    print(f"\n🔍 DEBUG add_to_voice_cart():")
+    print(f"   Items in cart: {len(existing_items)}")
+    for item in existing_items:
+        print(f"     - {item['name']}: qty={item['quantity']}, basePrice=${item['basePrice']}, totalPrice=${item['totalPrice']}")
+    print(f"   Subtotal: ${subtotal:.2f}")
+    print(f"   Delivery Fee: ${delivery_fee:.2f}")
+    print(f"   TOTAL: ${total:.2f}\n")
+    
     # Update or create cart with all items
     voice_cart = {
         "id": "cart-voice",
@@ -600,6 +657,15 @@ def checkout_cart() -> Dict[str, Any]:
     import time
     order_number = f"VO{str(int(time.time()))[-6:]}"
     
+    # DEBUG: Log cart state before checkout
+    print(f"\n🔍 DEBUG checkout_cart():")
+    print(f"   Cart subtotal: ${voice_cart.get('subtotal')}")
+    print(f"   Cart deliveryFee: ${voice_cart.get('deliveryFee')}")
+    print(f"   Cart total: ${voice_cart.get('total')}")
+    print(f"   Cart items: {len(voice_cart.get('items', []))}")
+    for item in voice_cart.get('items', []):
+        print(f"     - {item['name']}: qty={item['quantity']}, basePrice=${item['basePrice']}, totalPrice=${item['totalPrice']}")
+    
     # Create order summary
     order_summary = {
         "orderNumber": order_number,
@@ -615,6 +681,8 @@ def checkout_cart() -> Dict[str, Any]:
         "total": voice_cart.get("total"),
         "itemCount": len(voice_cart.get("items", []))
     }
+    
+    print(f"   Order summary total: ${order_summary['total']}\n")
     
     # Clear cart after checkout
     voice_cart = None

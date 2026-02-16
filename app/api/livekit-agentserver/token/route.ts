@@ -23,7 +23,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { AccessToken } from "livekit-server-sdk";
+import { AccessToken, RoomServiceClient, AgentDispatchClient } from "livekit-server-sdk";
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,6 +51,38 @@ export async function POST(request: NextRequest) {
     console.log(`   Room: ${roomName}`);
     console.log(`   Participant: ${participantName}`);
     console.log(`   Pattern: AgentServer (v1.4.1+)`);
+    console.log(`   Agent: ubereats-food-concierge`);
+
+    // Create room - agent will be dispatched below
+    try {
+      const roomService = new RoomServiceClient(livekitUrl, apiKey, apiSecret);
+      await roomService.createRoom({
+        name: roomName,
+        emptyTimeout: 300, // 5 minutes
+        maxParticipants: 10,
+      });
+      console.log(`   ✅ Room created`);
+    } catch (error: any) {
+      // Room might already exist, that's ok
+      if (!error?.message?.includes('already exists')) {
+        console.warn(`   ⚠️ Room creation warning:`, error?.message);
+      }
+    }
+
+    // Dispatch ONLY the specified agent by name
+    // This ensures only ONE worker with matching agent_name joins
+    // If you see multiple agents joining:
+    // 1. Check LiveKit dashboard - delete old/unused agent workers
+    // 2. Ensure agent name is unique across all your projects
+    // 3. Make sure only ONE agent process is running locally
+    try {
+      const agentDispatch = new AgentDispatchClient(livekitUrl, apiKey, apiSecret);
+      await agentDispatch.createDispatch(roomName, "ubereats-food-concierge");
+      console.log(`   ✅ Agent dispatched: ubereats-food-concierge`);
+    } catch (error: any) {
+      console.error(`   ❌ Agent dispatch failed:`, error?.message);
+      // Continue anyway - agent might auto-join
+    }
 
     // Create access token
     const token = new AccessToken(apiKey, apiSecret, {

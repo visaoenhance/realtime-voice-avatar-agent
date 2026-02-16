@@ -28,6 +28,7 @@ from database import (
     get_voice_cart,
     add_to_voice_cart,
     checkout_cart,
+    reset_voice_cart,
 )
 
 async def test_get_user_profile():
@@ -76,30 +77,66 @@ async def test_search_restaurants():
         print(f"❌ Failed: {e}")
         return False
 
+def test_cart_reset():
+    """Test 4: Cart Reset (NEW - prevents session carryover bug)"""
+    print("\n🧪 Test 4: Cart Reset Functionality")
+    try:
+        # First, add items to cart to simulate previous session
+        print("   Step 1: Simulating previous session with items...")
+        add_to_voice_cart("Pizza", "Test Restaurant", quantity=5)
+        add_to_voice_cart("Burger", "Test Restaurant", quantity=3)
+        
+        cart_before = get_voice_cart()
+        items_before = len(cart_before['cart']['items'])
+        total_before = cart_before['cart']['total']
+        print(f"   Cart before reset: {items_before} items, ${total_before:.2f}")
+        
+        # Now reset the cart (this is what happens at session start)
+        print("   Step 2: Calling reset_voice_cart()...")
+        reset_voice_cart()
+        
+        # Verify cart is empty
+        cart_after = get_voice_cart()
+        print(f"   Cart after reset: {cart_after['cart']['status']}")
+        
+        if cart_after['cart']['status'] == 'empty' and cart_after['cart']['total'] == 0:
+            print("✅ Cart reset successful - prevents $100.98 bug!")
+            print(f"   Cleared {items_before} items (${total_before:.2f}) from memory")
+            return True
+        else:
+            print("❌ Cart reset failed - items still in cart!")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 def test_cart_operations():
-    """Test 4-6: Cart operations"""
-    print("\n🧪 Test 4: View Empty Cart")
+    """Test 5-7: Cart operations"""
+    print("\n🧪 Test 5: View Empty Cart")
     try:
         cart = get_voice_cart()
-        print(f"✅ Empty cart: {cart['status']}")
+        print(f"✅ Empty cart: {cart['cart']['status']}")
         
-        print("\n🧪 Test 5: Add Items to Cart")
+        print("\n🧪 Test 6: Add Items to Cart")
         result = add_to_voice_cart("Cheeseburger", "Good Burger", quantity=2)
         print(f"✅ Added to cart:")
         print(f"   Items: {result['itemCount']}")
         print(f"   Total: ${result['total']:.2f}")
         
         cart = get_voice_cart()
-        print(f"✅ Cart now has {len(cart['items'])} items")
+        print(f"✅ Cart now has {len(cart['cart']['items'])} items")
         
-        print("\n🧪 Test 6: Checkout")
+        print("\n🧪 Test 7: Checkout")
         checkout_result = checkout_cart()
         print(f"✅ Order placed:")
         print(f"   Order #: {checkout_result['orderId']}")
         print(f"   Total: ${checkout_result['orderDetails']['total']:.2f}")
         
         cart_after = get_voice_cart()
-        print(f"✅ Cart cleared: {cart_after['status']}")
+        print(f"✅ Cart cleared: {cart_after['cart']['status']}")
         
         return True
     except Exception as e:
@@ -117,6 +154,7 @@ async def run_all_tests():
     results.append(await test_get_user_profile())
     results.append(await test_search_menu_items())
     results.append(await test_search_restaurants())
+    results.append(test_cart_reset())  # NEW: Test cart reset to prevent carryover bug
     results.append(test_cart_operations())
     
     # Summary

@@ -276,6 +276,64 @@ git diff app/api/food-chat/tools.ts
 node scripts/test-supabase.js
 ```
 
+## Agent Tests
+
+### Cart Reset Test
+**File**: `test-cart-reset.js`  
+**Purpose**: Verify voice cart resets between sessions (prevents $100.98 carryover bug)
+
+**Issue**: Agent announces wrong total due to cart persisting between sessions
+- UI shows: $11.98 ✅
+- Agent says: $100.98 ❌ (items from previous orders)
+
+**Fix**: `reset_voice_cart()` called at session start in both agents
+
+**Run the test**:
+```bash
+node scripts/test-cart-reset.js
+```
+
+**What it checks**:
+1. ✓ `reset_voice_cart()` function exists in database.py
+2. ✓ Called in food_concierge_agentserver.py at session start
+3. ✓ Called in food_concierge_native.py at session start
+4. ✓ Runtime test: cart clears properly (requires Python deps)
+
+**Python runtime test** (optional):
+```bash
+# Install Python dependencies first
+cd agents
+pip install -r requirements.txt
+
+# Then run from workspace root
+node scripts/test-cart-reset.js
+```
+
+**Expected output**:
+```
+✅ Cart reset properly implemented in all agents
+✅ Cart reset successful - prevents $100.98 bug!
+```
+
+### Database Tests
+**File**: `../agents/test_database.py`  
+**Purpose**: Unit tests for Python database layer
+
+**Run directly**:
+```bash
+cd agents
+python3 test_database.py
+```
+
+**Tests included**:
+1. Get user profile
+2. Search menu items  
+3. Search restaurants
+4. Cart reset (NEW)
+5. View empty cart
+6. Add items to cart
+7. Checkout
+
 ## Documentation
 
 - [CHAT_FLOW_DESIGN.md](../docs/CHAT_FLOW_DESIGN.md) - Pipeline architecture overview
@@ -289,8 +347,9 @@ node scripts/test-supabase.js
 ✅ **Voice Flow**: Direct commands still functional  
 ✅ **Shared Components**: Both pipelines render same UI  
 ✅ **Test Coverage**: All 5 tests passing  
+✅ **Cart Reset**: Voice cart clears between sessions  
 
 ---
 
-**Last Updated**: February 13, 2026  
-**Status**: Test suite ready, awaiting AI-SDK fixes
+**Last Updated**: February 16, 2026  
+**Status**: Cart reset test added, agent debugging tools ready

@@ -18,6 +18,40 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
+# ============================================
+# 🧹 Clean up zombie processes before starting
+# ============================================
+echo -e "${BLUE}🧹 Cleaning up old processes...${NC}"
+
+# Count existing zombie workers
+ZOMBIE_COUNT=$(ps aux | grep "multiprocessing.spawn" | grep -v grep | wc -l | tr -d ' ')
+AGENT_COUNT=$(ps aux | grep "food_concierge_agentserver.py" | grep -v grep | wc -l | tr -d ' ')
+
+if [ "$AGENT_COUNT" -gt 0 ] || [ "$ZOMBIE_COUNT" -gt 0 ]; then
+    echo -e "${YELLOW}   Found: $AGENT_COUNT agent process(es), $ZOMBIE_COUNT zombie worker(s)${NC}"
+    
+    # Kill existing agent processes
+    if [ "$AGENT_COUNT" -gt 0 ]; then
+        pkill -9 -f "food_concierge_agentserver.py" 2>/dev/null || true
+        echo -e "${GREEN}   ✓ Killed old agent processes${NC}"
+    fi
+    
+    # Kill zombie multiprocessing workers
+    if [ "$ZOMBIE_COUNT" -gt 0 ]; then
+        ps aux | grep "multiprocessing.spawn" | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null || true
+        echo -e "${GREEN}   ✓ Killed $ZOMBIE_COUNT zombie worker(s)${NC}"
+    fi
+    
+    # Wait for processes to fully terminate and unregister from LiveKit Cloud
+    echo -e "${BLUE}   ⏳ Waiting 3 seconds for clean unregistration...${NC}"
+    sleep 3
+    echo -e "${GREEN}   ✓ Cleanup complete${NC}"
+else
+    echo -e "${GREEN}   ✓ No old processes found - starting fresh${NC}"
+fi
+
+echo ""
+
 # Check if .venv exists
 if [ ! -d ".venv" ]; then
     echo -e "${YELLOW}⚠️  Virtual environment not found!${NC}"
@@ -40,8 +74,20 @@ fi
 cleanup() {
     echo ""
     echo -e "${YELLOW}🛑 Shutting down servers...${NC}"
+    
+    # Kill Next.js
     pkill -f "next dev" 2>/dev/null || true
+    
+    # Kill agent process
     pkill -f "food_concierge_agentserver.py" 2>/dev/null || true
+    
+    # Kill any zombie workers that might have been spawned
+    ZOMBIE_COUNT=$(ps aux | grep "multiprocessing.spawn" | grep -v grep | wc -l | tr -d ' ')
+    if [ "$ZOMBIE_COUNT" -gt 0 ]; then
+        echo -e "${YELLOW}   Cleaning up $ZOMBIE_COUNT worker process(es)...${NC}"
+        ps aux | grep "multiprocessing.spawn" | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null || true
+    fi
+    
     echo -e "${GREEN}✅ Cleanup complete${NC}"
     exit 0
 }

@@ -66,6 +66,7 @@ from database import (
     remove_from_cart,
     update_cart_item_quantity,
     checkout_cart,  # Note: it's checkout_cart, not checkout_voice_cart
+    reset_voice_cart,  # Reset cart between sessions
     # get_restaurant_menu,  # Not available in database.py
 )
 
@@ -663,10 +664,14 @@ class FoodConciergeAgent(Agent):
                     order_id = result.get('orderId', 'unknown')
                     total = result.get('total', 0)
                     
+                    # DEBUG: Log the total being announced
+                    logger.info(f"   🔍 DEBUG: result['total'] = {total} (type: {type(total)})")
+                    logger.info(f"   🔍 DEBUG: Full result = {result}")
+                    
                     # Track in userdata
                     ctx.userdata.order_count += 1
                     
-                    logger.info(f"   ✅ Order placed: {order_id}")
+                    logger.info(f"   ✅ Order placed: {order_id}, Total: ${total:.2f}")
                     return f"Order confirmed! Order ID: {order_id}. Total: ${total:.2f}. Estimated delivery: 30-45 minutes."
                 else:
                     return f"Checkout failed: {result.get('message', 'Unknown error')}"
@@ -820,7 +825,10 @@ async def on_session_end(ctx: JobContext) -> None:
         logger.error(f"   Failed to generate session report: {e}")
 
 
-@server.rtc_session(on_session_end=on_session_end)
+@server.rtc_session(
+    on_session_end=on_session_end,
+    agent_name="ubereats-food-concierge"  # Unique name to avoid conflicts with other projects
+)
 async def food_concierge_agent(ctx: JobContext) -> None:
     """
     Main agent entry point - called when user connects to room.
@@ -831,6 +839,10 @@ async def food_concierge_agent(ctx: JobContext) -> None:
     3. Start agent with typed userdata
     """
     logger.info(f"🚀 Agent starting for room: {ctx.room.name}")
+    
+    # Reset voice cart to prevent carryover from previous sessions
+    reset_voice_cart()
+    logger.info("🔄 Voice cart reset for new session")
     
     # Create user state
     userdata = await new_userdata()

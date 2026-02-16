@@ -78,6 +78,7 @@ from database import (
     search_restaurants_by_cuisine,
     get_voice_cart,
     add_to_voice_cart,
+    reset_voice_cart,
     checkout_cart,
 )
 
@@ -304,6 +305,10 @@ async def entrypoint(ctx: JobContext):
     """
     logger.info("🚀 Agent entrypoint called")
     logger.info(f"   Room: {ctx.room.name}")
+    
+    # Reset voice cart to prevent carryover from previous sessions
+    reset_voice_cart()
+    logger.info("🔄 Voice cart reset for new session")
     
     # Wait for first participant
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
