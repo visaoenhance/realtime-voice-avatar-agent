@@ -901,43 +901,90 @@ function VoiceAssistantControls({
   const [agentJoined, setAgentJoined] = React.useState(false);
   const [showAgentJoinedBanner, setShowAgentJoinedBanner] = React.useState(false);
   const [agentError, setAgentError] = React.useState<{type: string, message: string, timestamp: number} | null>(null);
+  const hasAutoEnabledMic = React.useRef(false); // Track if we've already auto-enabled mic once
 
   const micTrack = localParticipant?.getTrackPublication(Track.Source.Microphone)?.track;
   
-  // Auto-enable microphone when connected
-  React.useEffect(() => {
-    if (isConnected && room && !isMicEnabled) {
-      console.log('[AGENTSERVER] 🎤 Auto-enabling microphone on connection...');
-      room.localParticipant.setMicrophoneEnabled(true).then(() => {
-        setIsMicEnabled(true);
-        console.log('[AGENTSERVER] ✅ Microphone auto-enabled');
-      }).catch(err => {
-        console.error('[AGENTSERVER] ❌ Failed to auto-enable mic:', err);
-      });
-    }
-  }, [isConnected, room, isMicEnabled]);
-
-  // Toggle microphone
+  // Toggle microphone - properly mute/unmute the audio track
   const toggleMicrophone = React.useCallback(async () => {
     if (!room) return;
     
     try {
+      const micPublication = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+      
       if (isMicEnabled) {
-        console.log('[AGENTSERVER] 🔇 Disabling microphone...');
+        console.log('[AGENTSERVER] 🔇 Muting microphone...');
+        
+        // Stop publishing to completely cut off audio to agent
+        if (micPublication?.track) {
+          await micPublication.track.mute();
+          console.log('[AGENTSERVER] ✅ Track muted');
+        }
+        
+        // Also disable at participant level
         await room.localParticipant.setMicrophoneEnabled(false);
         setIsMicEnabled(false);
-        console.log('[AGENTSERVER] ✅ Microphone disabled');
+        console.log('[AGENTSERVER] ✅ Microphone fully disabled - Agent cannot hear you');
       } else {
-        console.log('[AGENTSERVER] 🎤 Enabling microphone...');
+        console.log('[AGENTSERVER] 🎤 Unmuting microphone...');
+        
+        // Re-enable at participant level first
         await room.localParticipant.setMicrophoneEnabled(true);
+        
+        // Unmute the track to resume audio
+        if (micPublication?.track) {
+          await micPublication.track.unmute();
+          console.log('[AGENTSERVER] ✅ Track unmuted');
+        }
+        
         setIsMicEnabled(true);
-        console.log('[AGENTSERVER] ✅ Microphone enabled');
-        console.log('[AGENTSERVER] 👂 Agent should now be listening...');
+        console.log('[AGENTSERVER] ✅ Microphone fully enabled');
+        console.log('[AGENTSERVER] 👂 Agent is now listening...');
       }
     } catch (error) {
       console.error('[AGENTSERVER] ❌ Error toggling microphone:', error);
     }
   }, [room, isMicEnabled]);
+
+  // Auto-enable microphone when first connected (only once, not after manual mutes)
+  React.useEffect(() => {
+    if (isConnected && room && !hasAutoEnabledMic.current) {
+      console.log('[AGENTSERVER] 🎤 Auto-enabling microphone on initial connection...');
+      room.localParticipant.setMicrophoneEnabled(true).then(() => {
+        hasAutoEnabledMic.current = true; // Mark as done so we don't re-enable after manual mutes
+        setIsMicEnabled(true);
+        console.log('[AGENTSERVER] ✅ Microphone auto-enabled on initial connection');
+      }).catch(err => {
+        console.error('[AGENTSERVER] ❌ Failed to auto-enable mic:', err);
+      });
+    }
+  }, [isConnected, room]);
+
+  // Keyboard shortcut: Press 'M' to mute/unmute (for easier demo recording)
+  React.useEffect(() => {
+    if (!agentJoined) return;
+
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Only trigger if not typing in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      // Press 'M' key to toggle mute
+      if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        console.log('[AGENTSERVER] ⌨️ Keyboard shortcut: M pressed');
+        toggleMicrophone();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    console.log('[AGENTSERVER] ⌨️ Keyboard shortcut registered: Press "M" to mute/unmute');
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [agentJoined, toggleMicrophone]);
 
   // Listen for agent data messages (transcriptions and responses)
   React.useEffect(() => {
@@ -1130,7 +1177,7 @@ function VoiceAssistantControls({
             !agentJoined ? 'bg-slate-200 cursor-not-allowed' :
             isMicEnabled 
               ? 'bg-gradient-to-r from-green-400 to-green-500 hover:from-green-500 hover:to-green-600 shadow-lg' 
-              : 'bg-gradient-to-r from-slate-300 to-slate-400 hover:from-slate-400 hover:to-slate-500'
+              : 'bg-gradient-to-r from-red-400 to-red-500 hover:from-red-500 hover:to-red-600 shadow-lg'
           }`}
         >
           <div className="text-5xl mb-2">
@@ -1138,11 +1185,15 @@ function VoiceAssistantControls({
           </div>
           <div className="text-lg font-bold text-white">
             {!agentJoined ? 'Waiting for Agent to Join...' :
-             isMicEnabled ? 'Microphone ON - Speak Now!' : 'Click to Enable Microphone'}
+             isMicEnabled ? 'Microphone ON - Click to MUTE' : 'Microphone MUTED - Click to UNMUTE'}
           </div>
-          {isMicEnabled && (
+          {isMicEnabled ? (
             <div className="text-sm text-white/90 mt-1">
               Agent is listening...
+            </div>
+          ) : (
+            <div className="text-sm text-white/90 mt-1">
+              Safe to speak privately (agent can't hear)
             </div>
           )}
         </button>
@@ -1208,10 +1259,10 @@ function VoiceAssistantControls({
           )}
         </div>
       ) : (
-        <div className="mb-4 h-24 rounded-xl flex flex-col items-center justify-center bg-gradient-to-r from-gray-200 to-gray-300">
+        <div className="mb-4 h-24 rounded-xl flex flex-col items-center justify-center bg-gradient-to-r from-red-100 to-red-200 border-2 border-red-400 animate-pulse">
           <p className="text-3xl mb-2">🔇</p>
-          <p className="text-lg font-bold text-slate-900">Microphone Off</p>
-          <p className="text-xs text-slate-600">Click button above to enable</p>
+          <p className="text-lg font-bold text-red-900">MICROPHONE MUTED</p>
+          <p className="text-xs text-red-700 font-semibold">Agent CANNOT hear you - Safe to speak off-camera</p>
         </div>
       )}
 
@@ -1226,6 +1277,14 @@ function VoiceAssistantControls({
             <li>Watch the status change as agent responds</li>
             <li>Food cards appear automatically below</li>
           </ol>
+        </div>
+      )}
+      
+      {/* Demo Recording Tip */}
+      {isMicEnabled && (
+        <div className="mb-3 rounded-lg bg-purple-50 border border-purple-200 p-3 text-xs text-purple-800">
+          <p className="font-semibold mb-1">🎬 Demo Recording Tip:</p>
+          <p>Press <kbd className="px-2 py-1 bg-purple-200 rounded font-mono font-bold">M</kbd> key to quickly mute/unmute. When muted, the agent cannot hear you - perfect for pausing during demo recordings!</p>
         </div>
       )}
 
