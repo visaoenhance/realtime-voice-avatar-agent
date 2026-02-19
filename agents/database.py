@@ -28,7 +28,8 @@ DEMO_PROFILE_ID = os.getenv("DEMO_PROFILE_ID", "00000000-0000-0000-0000-00000000
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")
 
 print(f"✅ Database client initialized")
-print(f"   Supabase URL: {supabase_url}")
+supabase_type = 'Cloud' if 'supabase.co' in supabase_url else 'Local'
+print(f"   Supabase: {supabase_type}")
 print(f"   Demo Profile: {DEMO_PROFILE_ID}")
 print(f"   Pexels API: {'✓ Configured' if PEXELS_API_KEY else '✗ Not configured'}")
 

@@ -948,7 +948,7 @@ User says: "Place my order"
 │  LIVEKIT CLOUD INFRASTRUCTURE                                      │
 │  ══════════════════════════════════                                │
 │                                                                    │
-│  • WebRTC Media Server (wss://visao-w97d7sv9.livekit.cloud)        │
+│  • WebRTC Media Server (wss://your-project.livekit.cloud)        │
 │  • Room Management                                                 │
 │  • Participant Tracking                                            │
 │  • Agent Dispatch System                                           │

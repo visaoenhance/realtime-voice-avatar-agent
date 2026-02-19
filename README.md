@@ -1,110 +1,268 @@
-# Food Court Voice Concierge (with MovieNite Legacy Route)
+# Food Court Voice Concierge - LiveKit AgentServer
 
-This repository now centers on a human-in-the-loop **Food Court** concierge: a voice-forward agent that guides households to open restaurants, surfaces fallback suggestions, and gathers approvals before taking action. The original **MovieNite** Netflix experiment still ships as a legacy `/voice` route for comparison, but Food Court is the primary experience.
+A real-time voice AI agent for food ordering, built with [LiveKit AgentServer](https://docs.livekit.io/agents/) framework. Users can browse restaurants, view menus, manage their cart, and place orders entirely through natural conversation.
 
-## Highlights
+## Features
 
-- Conversational restaurant discovery with OpenAI GPT models and AI SDK tool orchestration
-- Voice-first interaction layer with typed fallback, Supabase-backed context, and Sample data for offline demos
-- Clarifies delivery area before searching, mirrors the household’s language, and speaks concise confirmations
-- Human-in-the-loop approvals remain for critical actions (preferences, order intent, playback)
-- Fallback catalogue (including Colombian, Caribbean, and healthy options) keeps demos working without Supabase
-- Legacy MovieNite flow preserved at `/voice` to showcase the earlier Netflix prompt stack
+- 🎤 **Voice-first interaction** - Natural spoken conversation powered by WebRTC
+- 🍔 **9 function tools** - Search restaurants, browse menus, manage cart, checkout
+- 🗄️ **Supabase backend** - PostgreSQL database for restaurants, menu items, carts, and orders
+- 🔄 **Real-time streaming** - Low-latency audio with LiveKit infrastructure
+- 🌐 **Multi-language support** - Automatic language detection and responses
+
+## Architecture
+
+### Tech Stack
+
+- **Python AgentServer** - `agents/food_concierge_agentserver.py` (LiveKit AgentServer framework)
+- **Next.js 14** - Frontend UI with App Router (`app/food/concierge-agentserver/`)
+- **LiveKit Cloud** - WebRTC infrastructure for real-time audio streaming
+- **OpenAI** - GPT-4o-mini (LLM), Whisper (STT), TTS (voice synthesis)
+- **Deepgram Nova-3** - Alternative STT with multichannel support
+- **Supabase** - PostgreSQL database (local or cloud)
+
+### Data Flow
+
+```
+User speaks → LiveKit WebRTC → AgentServer → STT (Deepgram/OpenAI)
+                                    ↓
+                              LLM (GPT-4o-mini)
+                                    ↓
+                         Function Tools (9 total)
+                                    ↓
+                              Supabase Database
+                                    ↓
+                              TTS (OpenAI)
+                                    ↓
+User hears ← LiveKit WebRTC ← AgentServer
+```
+
+## Function Tools
+
+The agent has 9 capability tools:
+
+1. **`get_user_profile`** - Fetch user preferences and order history
+2. **`find_food_item`** - Search menu items by name/description
+3. **`find_restaurants_by_type`** - Search restaurants by cuisine type
+4. **`get_restaurant_menu`** - View full menu with sections
+5. **`quick_view_cart`** - View current cart contents
+6. **`quick_add_to_cart`** - Add items to cart
+7. **`remove_from_cart`** - Remove items from cart
+8. **`update_cart_quantity`** - Change item quantities
+9. **`quick_checkout`** - Complete order and clear cart
+
+## Quick Start
+
+### Prerequisites
+
+- **Node.js** 18+ and npm
+- **Python** 3.10+ with pip
+- **Supabase** account (free tier works)
+- **LiveKit** account (free tier works)
+- **OpenAI** API key
+
+### 1. Clone and Install
+
+```bash
+# Install Node.js dependencies
+npm install
+
+# Install Python dependencies
+cd agents
+pip install -r requirements.txt
+cd ..
+```
+
+### 2. Configure Environment
+
+Create `.env.local` from the example:
+
+```bash
+cp .env.example .env.local
+```
+
+Edit `.env.local` with your credentials:
+
+```bash
+# LiveKit (from https://cloud.livekit.io)
+LIVEKIT_URL=wss://your-project.livekit.cloud
+LIVEKIT_API_KEY=your-api-key
+LIVEKIT_API_SECRET=your-api-secret
+
+# OpenAI (from https://platform.openai.com)
+OPENAI_API_KEY=sk-proj-...
+
+# Supabase (from https://supabase.com)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Demo Profile ID (will be created during seed)
+DEMO_PROFILE_ID=00000000-0000-0000-0000-0000000000fc
+```
+
+### 3. Set Up Database
+
+See [docs/SETUP.md](docs/SETUP.md) for detailed Supabase setup instructions.
+
+Quick version:
+
+1. Create a Supabase project
+2. Run the migration: `supabase/migrations/001_initial_schema.sql`
+3. Seed sample data: `supabase/seed.sql`
+4. Update `.env.local` with your Supabase credentials
+
+### 4. Run the Application
+
+**Terminal 1** - Start Next.js frontend:
+```bash
+npm run dev
+```
+
+**Terminal 2** - Start Python AgentServer:
+```bash
+cd agents
+python food_concierge_agentserver.py dev
+```
+
+**Terminal 3** (optional) - Watch logs:
+```bash
+tail -f agents/*.log
+```
+
+### 5. Test the Voice Agent
+
+1. Open http://localhost:3000/food/concierge-agentserver
+2. Click "Connect" to establish WebRTC connection
+3. Allow microphone permissions
+4. Start speaking! Try:
+   - "Show me Mexican restaurants"
+   - "What's on the menu at Sabor Latino?"
+   - "Add two chicken tacos to my cart"
+   - "What's in my cart?"
+   - "Place my order"
 
 ## Project Structure
 
-- `/` – Food Court marketplace landing page
-- `/food/concierge` – Food Court voice + chat concierge (current focus)
-- `/food/stores/[slug]` – Store detail with menu browsing and HITL item cards
-- `/food/stores/[slug]/items/[itemSlug]` – Item customization flow
-- `/voice` – MovieNite legacy voice concierge for streaming recommendations
+```
+├── agents/
+│   ├── food_concierge_agentserver.py  # Main Python AgentServer
+│   ├── database.py                     # Supabase connection layer
+│   ├── requirements.txt                # Python dependencies
+│   └── README.md                       # Agent-specific documentation
+├── app/
+│   ├── food/concierge-agentserver/
+│   │   └── page.tsx                    # Voice UI component
+│   └── api/livekit-agentserver/token/
+│       └── route.ts                    # Token generation endpoint
+├── components/
+│   ├── FoodCourtHeader.tsx             # Header component
+│   └── food-cards/                     # Restaurant/menu card components
+├── lib/
+│   ├── supabaseConfig.ts               # Supabase client config
+│   └── supabaseServer.ts               # Server-side Supabase client
+├── supabase/
+│   ├── config.toml                     # Supabase local config
+│   ├── migrations/
+│   │   └── 001_initial_schema.sql      # Database schema
+│   └── seed.sql                        # Sample data
+├── docs/
+│   ├── ARCHITECTURE.md                 # System architecture details
+│   ├── SETUP.md                        # Detailed setup guide
+│   └── DEPLOYMENT.md                   # Production deployment
+├── .env.example                        # Environment template
+├── package.json                        # Node.js dependencies
+└── README.md                           # This file
+```
 
-## Setup
+## Development
 
-1. **Install dependencies**
-   ```bash
-   npm install
-   ```
+### Local Development Workflow
 
-2. **Configure environment**
-   ```bash
-   cp env.local.example .env.local
-   ```
-   
-   **Environment Switching**: This project supports both local (Docker) and remote (Supabase Cloud) databases.
-   
-   Set `SUPABASE_ENV` in `.env.local`:
-   - `SUPABASE_ENV=local` – Uses local Docker Supabase (127.0.0.1:54321)
-   - `SUPABASE_ENV=remote` – Uses production Supabase Cloud
-   
-   Quick switch:
-   ```bash
-   ./scripts/switch-env.sh local   # Switch to local
-   ./scripts/switch-env.sh remote  # Switch to remote
-   ```
-   
-   Required keys:
-   ```
-   # Environment selector
-   SUPABASE_ENV=local
-   
-   # Local Supabase (Docker)
-   LOCAL_SUPABASE_URL=http://127.0.0.1:54321
-   LOCAL_SUPABASE_ANON_KEY=...
-   LOCAL_SUPABASE_SERVICE_ROLE_KEY=...
-   
-   # Remote Supabase (Production)
-   REMOTE_SUPABASE_URL=https://...supabase.co
-   REMOTE_SUPABASE_ANON_KEY=...
-   REMOTE_SUPABASE_SERVICE_ROLE_KEY=...
-   
-   # Other
-   OPENAI_API_KEY=sk-...
-   DEMO_PROFILE_ID=00000000-0000-0000-0000-0000000000fc
-   ```
-   
-   **Benefits of dual environments**:
-   - **Local**: Fast development, offline work, experimenting with schema changes
-   - **Remote**: Demos, production, external access, team collaboration
-   - **Disaster recovery**: Keep both synced so you can instantly switch if one fails
+1. **Frontend changes** - Next.js hot-reloads automatically
+2. **Agent changes** - Restart the Python AgentServer process
+3. **Database changes** - Create new migration SQL files
+4. **Function tools** - Update both `agents/database.py` and `agents/food_concierge_agentserver.py`
 
-3. **Seed Supabase (for live restaurant data)**
-   - Create a Supabase project.
-   - Run `supabase/schema.sql` to create the `fc_*` tables (preferences, restaurants, orders, layout, etc.).
-   - Optionally run `supabase/seed_data.sql` for richer demo records.
+### Testing
 
-   Without Supabase, the concierge falls back to the curated dataset in `data/foodCourtSamples.ts`.
+```bash
+# Test token generation
+curl http://localhost:3000/api/livekit-agentserver/token
 
-4. **Voice & speech configuration**
-   - `/api/openai/transcribe` handles recorded audio clips from the browser.
-   - `/api/openai/speak` uses OpenAI TTS; the concierge mirrors the user’s language when replying aloud.
-   - `hooks/useAssistantSpeech.ts` contains speech queueing logic and mute toggles.
+# Test Supabase connection
+cd agents
+python -c "from database import get_user_profile; print(get_user_profile('00000000-0000-0000-0000-0000000000fc'))"
+```
 
-5. **Legacy MovieNite assets (optional)**
-   - Update `data/muxTrailers.ts` with your Mux playback IDs if you plan to demo the `/voice` route.
+### Environment Switching
 
-## Usage
+This project supports both local (Docker) and remote (Cloud) Supabase:
 
-- `npm run dev` – Start the Next.js dev server.
-- Visit [http://localhost:3000/food/concierge](http://localhost:3000/food/concierge) to try the Food Court agent. It will:
-  - Call `getUserContext` on the first turn to ground preferences and recent orders.
-  - Ask for the current city/delivery area before searching.
-  - Use `searchRestaurants` + `recommendShortlist` to present conversational summaries (“three spots open: Sabor Colombiano Kitchen stays open until 9:30…”).
-  - Log order intent and feedback only after explicit acknowledgements.
-- Visit [http://localhost:3000/voice](http://localhost:3000/voice) to compare the MovieNite legacy experience.
+- **Local**: Fast development, offline work
+- **Remote**: Demos, production, team collaboration
 
-## Testing & Observability
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for environment switching details.
 
-- `scripts/test-chat.js` and `scripts/smoke-chat.js` simulate chat flows.
-- The concierge logs tool executions in the UI, helping verify HITL approvals and speech outputs.
-- Voice status indicators help debug microphone permissions and transcription state.
+## Troubleshooting
 
-## Contributing Notes
+### "Microphone not detected"
 
-- Keep Supabase schema and sample data aligned when adding new restaurant attributes.
-- Update the Food Court system prompt (`app/api/food-chat/route.ts`) when introducing new policies or tool sequences.
-- Maintain fallback data so the demo remains useful without Supabase credentials.
+- Check browser permissions (allow microphone access)
+- Ensure HTTPS or localhost (WebRTC requirement)
+- Try a different browser (Chrome/Edge recommended)
+
+### "Connection failed"
+
+- Verify LiveKit credentials in `.env.local`
+- Check AgentServer is running (`python food_concierge_agentserver.py dev`)
+- Check network/firewall isn't blocking WebRTC
+
+### "No restaurants found"
+
+- Verify Supabase database is seeded
+- Check Supabase credentials in `.env.local`
+- Test database connection: `python -c "from database import search_restaurants_by_cuisine; print(search_restaurants_by_cuisine('Mexican'))"`
+
+### "Agent not responding"
+
+- Check OpenAI API key is valid and has credits
+- View AgentServer logs for errors
+- Verify STT/LLM/TTS providers are configured
+
+## Documentation
+
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Detailed system architecture and design decisions
+- **[docs/SETUP.md](docs/SETUP.md)** - Comprehensive setup guide with troubleshooting
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Production deployment and environment management
+- **[agents/README.md](agents/README.md)** - Python AgentServer implementation details
+
+## Contributing
+
+Contributions welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
 ## License
 
-MIT – see [LICENSE](LICENSE) for details.
+MIT - See [LICENSE](LICENSE) for details.
+
+## Acknowledgments
+
+Built with:
+- [LiveKit AgentServer](https://docs.livekit.io/agents/) - Real-time voice infrastructure
+- [OpenAI](https://openai.com) - LLM and TTS
+- [Deepgram](https://deepgram.com) - Speech-to-text
+- [Supabase](https://supabase.com) - PostgreSQL backend
+- [Next.js](https://nextjs.org) - React framework
+- [Vercel AI SDK](https://sdk.vercel.ai) - AI SDK components
+
+## Support
+
+- **LiveKit Docs**: https://docs.livekit.io
+- **Supabase Docs**: https://supabase.com/docs
+- **Issues**: [GitHub Issues](https://github.com/your-org/your-repo/issues)

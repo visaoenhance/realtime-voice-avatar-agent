@@ -95,9 +95,9 @@ DEMO_PROFILE_ID=00000000-0000-0000-0000-0000000000fc
 OPENAI_API_KEY=sk-...
 
 # LiveKit Cloud
-LIVEKIT_URL=wss://visao-w97d7sv9.livekit.cloud
-LIVEKIT_API_KEY=APIRAVmRfMkqdBh
-LIVEKIT_API_SECRET=your-secret-here
+LIVEKIT_URL=wss://your-project.livekit.cloud
+LIVEKIT_API_KEY=your-api-key
+LIVEKIT_API_SECRET=your-api-secret
 ```
 
 These credentials are already in your `.env.local` file ✅

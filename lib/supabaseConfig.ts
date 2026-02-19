@@ -3,7 +3,7 @@
  * 
  * Dynamically selects credentials based on SUPABASE_ENV:
  * - local: Uses Docker Supabase (127.0.0.1:54321)
- * - remote: Uses production Supabase (ceeklugdyurvxonnhykt.supabase.co)
+ * - remote: Uses production Supabase (your-project.supabase.co)
  * 
  * Set SUPABASE_ENV=remote in .env.local to switch environments.
  */
