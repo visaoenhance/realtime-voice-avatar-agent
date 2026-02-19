@@ -1014,7 +1014,7 @@ User says: "Place my order"
 │                                                                    │
 │      # 5. Generate greeting                                        │
 │      await session.generate_reply(                                 │
-│          "Say: Hello, Emilio - what are you in the mood for?"      │
+│          "Say: Hello! What are you in the mood for today?"         │
 │      )                                                             │
 └────────────┬───────────────────────────────────────────────────────┘
              │

@@ -956,7 +956,7 @@ async def food_concierge_agent(ctx: JobContext) -> None:
     # Generate initial greeting (like native agent)
     logger.info("🎙️ Generating greeting...")
     await session.generate_reply(
-        instructions="Say: 'Hello, Emilio - what are you in the mood for today?'"
+        instructions="Say: 'Hello! What are you in the mood for today?'"
     )
     
     logger.info("✅ Agent session started with greeting")
