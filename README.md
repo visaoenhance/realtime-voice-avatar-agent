@@ -266,6 +266,17 @@ Contributions welcome! Please:
 
 MIT - See [LICENSE](LICENSE) for details.
 
+## About the Author
+
+Built by **Visao Enhance** - AI consulting and development services.
+
+- 🌐 **Consulting**: [visaoenhance.com](https://www.visaoenhance.com)
+- 📺 **YouTube Channel**: [@learn2enhance](https://www.youtube.com/@learn2enhance)
+- 🎥 **Demo Video**: [Watch this project in action](https://youtu.be/phNKCT2dA_w)
+- 📝 **Tech Blog**: [Medium](https://emiliotaylor.medium.com)
+
+*Building AI-powered solutions and sharing knowledge through tutorials and demos.*
+
 ## Acknowledgments
 
 Built with:
@@ -280,4 +291,4 @@ Built with:
 
 - **LiveKit Docs**: https://docs.livekit.io
 - **Supabase Docs**: https://supabase.com/docs
-- **Issues**: [GitHub Issues](https://github.com/your-org/your-repo/issues)
+- **Project Issues**: Open an issue in this repository for questions or bug reports
