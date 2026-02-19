@@ -15,7 +15,7 @@ Python-based voice agent using LiveKit Agents SDK for real-time voice interactio
                      ↓
 ┌─────────────────────────────────────────────────────────────┐
 │                 LiveKit Cloud Infrastructure                 │
-│          wss://visao-w97d7sv9.livekit.cloud                 │
+│          wss://your-project.livekit.cloud                   │
 │     Audio routing, VAD, session management (WebRTC)         │
 └────────────────────┬────────────────────────────────────────┘
                      │
@@ -132,7 +132,7 @@ Expected output:
    Supabase URL: http://127.0.0.1:54321
    Demo Profile: 00000000-0000-0000-0000-0000000000fc
 ✅ Food Concierge Native Agent initialized
-   LiveKit URL: wss://visao-w97d7sv9.livekit.cloud
+   LiveKit URL: wss://your-project.livekit.cloud
    OpenAI STT: whisper-1
    OpenAI LLM: gpt-4
    OpenAI TTS: tts-1
