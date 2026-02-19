@@ -1,13 +1,30 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { supabase, DEMO_PROFILE_ID } from '@/lib/supabaseServer';
 
-export async function POST(request: NextRequest) {
+// Helper: JSON error response
+function jsonError(status: number, message: string, extra?: Record<string, any>) {
+  return NextResponse.json({ error: message, ...extra }, { status });
+}
+
+// Helper: Log only in development
+function devLog(...args: any[]) {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(...args);
+  }
+}
+
+export async function POST() {
+  // Demo/debug-only endpoint - not accessible in production
+  if (process.env.NODE_ENV === 'production') {
+    return jsonError(404, 'Not found');
+  }
+
   if (!supabase) {
-    return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
+    return jsonError(500, 'Supabase not configured');
   }
 
   try {
-    // Get an active cart first
+    // Get active cart
     const { data: activeCart, error: cartError } = await supabase
       .from('fc_carts')
       .select('id, restaurant_id, status, subtotal')
@@ -17,14 +34,14 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .maybeSingle();
 
-    if (cartError || !activeCart) {
-      return NextResponse.json({ 
-        error: 'No active cart found',
-        cartError: cartError?.message
-      }, { status: 404 });
+    if (cartError) {
+      return jsonError(500, 'Failed to fetch cart', { details: cartError.message });
+    }
+    if (!activeCart) {
+      return jsonError(404, 'No active cart found');
     }
 
-    console.log('Found active cart:', activeCart);
+    devLog('Found active cart:', activeCart.id);
 
     // Get cart items
     const { data: cartItems, error: itemsError } = await supabase
@@ -33,15 +50,13 @@ export async function POST(request: NextRequest) {
       .eq('cart_id', activeCart.id);
 
     if (itemsError) {
-      return NextResponse.json({ 
-        error: 'Failed to fetch cart items',
-        itemsError: itemsError?.message
-      }, { status: 500 });
+      return jsonError(500, 'Failed to fetch cart items', { details: itemsError.message });
     }
 
-    console.log('Found cart items:', cartItems?.length || 0);
+    const items = cartItems || [];
+    devLog('Found cart items:', items.length);
 
-    // Try to create an order - minimal required fields
+    // Create order
     const orderNumber = `FC-${Date.now()}`;
     const orderData = {
       profile_id: DEMO_PROFILE_ID,
@@ -55,7 +70,7 @@ export async function POST(request: NextRequest) {
       delivery_address: 'Test Address'
     };
 
-    console.log('Creating order with data:', orderData);
+    devLog('Creating order:', orderNumber);
 
     const { data: order, error: orderError } = await supabase
       .from('fc_orders')
@@ -64,43 +79,57 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (orderError) {
-      return NextResponse.json({ 
-        error: 'Failed to create order',
-        orderError: orderError.message,
-        orderData
-      }, { status: 500 });
+      return jsonError(500, 'Failed to create order', { 
+        details: orderError.message,
+        orderData 
+      });
     }
 
-    console.log('Order created:', order);
+    devLog('Order created:', order.id);
 
-    // Add order items
-    const orderItems = [];
-    for (const item of cartItems) {
-      const menuItem = item.menu_item as { name: string } | { name: string }[] | null;
-      const itemName = Array.isArray(menuItem) ? menuItem[0]?.name : (menuItem as any)?.name || 'Unknown Item';
-      const itemData = {
-        order_id: order.id,
-        menu_item_id: item.menu_item_id,
-        name: itemName,
-        quantity: item.quantity,
-        base_price: item.base_price,
-        total_price: item.total_price,
-        notes: item.instructions
-      };
+    // Add order items (concurrent)
+    const orderItemResults = await Promise.allSettled(
+      items.map(async (item) => {
+        if (!supabase) {
+          throw new Error('Supabase is not configured');
+        }
 
-      const { data: orderItem, error: itemError } = await supabase
-        .from('fc_order_items')
-        .insert(itemData)
-        .select('id')
-        .single();
+        const menuItem = item.menu_item as { name: string } | { name: string }[] | null;
+        const itemName =
+          Array.isArray(menuItem) ? menuItem[0]?.name : (menuItem as any)?.name || 'Unknown Item';
 
-      if (itemError) {
-        console.error('Order item error:', itemError);
-        continue;
-      }
+        const { data: orderItem, error: itemError } = await supabase
+          .from('fc_order_items')
+          .insert({
+            order_id: order.id,
+            menu_item_id: item.menu_item_id,
+            name: itemName,
+            quantity: item.quantity,
+            base_price: item.base_price,
+            total_price: item.total_price,
+            notes: item.instructions,
+          })
+          .select('id')
+          .single();
 
-      orderItems.push(orderItem);
-    }
+        if (itemError) {
+          throw new Error(`menu_item_id=${item.menu_item_id}: ${itemError.message}`);
+        }
+
+        return orderItem;
+      })
+    );
+
+    const createdOrderItems = orderItemResults
+      .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
+      .map((r) => r.value);
+
+    const failedOrderItems = orderItemResults
+      .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+      .map((r) => String(r.reason?.message || r.reason));
+
+    devLog('Order items created:', createdOrderItems.length);
+    if (failedOrderItems.length) devLog('Order item failures:', failedOrderItems);
 
     // Update cart status
     const { error: updateError } = await supabase
@@ -109,23 +138,23 @@ export async function POST(request: NextRequest) {
       .eq('id', activeCart.id);
 
     if (updateError) {
-      console.error('Cart update error:', updateError);
+      devLog('Cart update error:', activeCart.id, updateError.message);
     }
 
     return NextResponse.json({
       success: true,
       orderId: order.id,
       cartId: activeCart.id,
-      itemCount: cartItems.length,
+      itemCount: items.length,
       total: activeCart.subtotal,
-      orderItems: orderItems.length
+      orderItems: createdOrderItems.length,
+      orderItemFailures: failedOrderItems.length
     });
 
   } catch (error) {
-    console.error('Test order error:', error);
-    return NextResponse.json({ 
-      error: 'Unexpected error',
+    devLog('Test order error:', error instanceof Error ? error.message : String(error));
+    return jsonError(500, 'Unexpected error', { 
       message: error instanceof Error ? error.message : String(error)
-    }, { status: 500 });
+    });
   }
 }
