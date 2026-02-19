@@ -227,7 +227,33 @@ Default password: `postgres`
 
 ## Running the Application
 
-### Method 1: Two Terminal Windows
+## Running the Application
+
+### Method 1: Quick Start Script (Recommended)
+
+The easiest way to start both servers:
+
+```bash
+./start-dev.sh
+```
+
+This script:
+- Cleans up any zombie processes from previous runs
+- Starts Next.js dev server in background
+- Starts Python AgentServer in background
+- Waits for both to be ready
+- Opens browser to the app
+- Shows helpful status messages
+
+To stop:
+```bash
+# Press Ctrl+C in the terminal where you ran start-dev.sh
+# Or manually:
+pkill -f "food_concierge_agentserver.py"
+pkill -f "next dev"
+```
+
+### Method 2: Two Terminal Windows
 
 **Terminal 1** - Frontend (Next.js):
 ```bash
@@ -254,7 +280,7 @@ INFO     Connected to Supabase
 INFO     LiveKit AgentServer listening
 ```
 
-### Method 2: Background Processes
+### Method 3: Background Processes
 
 For development, you can run both in background:
 

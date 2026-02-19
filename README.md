@@ -114,6 +114,21 @@ Quick version:
 
 ### 4. Run the Application
 
+**Option A: Quick Start (Recommended)**
+
+Single command to start both frontend and backend:
+```bash
+./start-dev.sh
+```
+
+This automatically:
+- Cleans up any zombie processes
+- Starts Next.js dev server
+- Starts Python AgentServer
+- Opens your browser to the app
+
+**Option B: Manual Start**
+
 **Terminal 1** - Start Next.js frontend:
 ```bash
 npm run dev
