@@ -42,3 +42,6 @@ bkups/
 # archived files from pre-public release
 archive/
 
+# build reference (working notes, not for public release)
+build-ref/
+
