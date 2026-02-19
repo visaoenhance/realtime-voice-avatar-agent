@@ -29,6 +29,7 @@ import {
 } from "@livekit/components-react";
 import { Track, ConnectionState } from 'livekit-client';
 import { CustomerProfileCard, RestaurantSearchCard, RestaurantMenuCard, ShoppingCartCard, MenuItemSpotlightCard, FoodImagePreviewCard, RestaurantRecommendationCard, OrderConfirmationCard } from '@/components/food-cards';
+import DebugPanel from '@/components/DebugPanel';
 import FoodCourtHeader from '@/components/FoodCourtHeader';
 
 const LIVEKIT_TOKEN_ENDPOINT = "/api/livekit-agentserver/token";
@@ -732,27 +733,13 @@ export default function AgentServerConcierge() {
           </div>
         </section>
 
-        {/* Debug/Tool Execution Logs */}
+        {/* Debug Panel */}
         <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Agent Logs</h3>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {debugExecutions.map((log, i) => (
-              <div key={i} className="text-sm font-mono bg-slate-50 p-3 rounded">
-                <span className="text-slate-500">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                {' '}
-                <span className="font-semibold">{log.tool}</span>
-                {log.args && <span className="text-slate-600"> {JSON.stringify(log.args)}</span>}
-              </div>
-            ))}
-            {agentLogs.map((log, i) => (
-              <div key={`agent-${i}`} className="text-sm text-slate-600 p-2">
-                {log}
-              </div>
-            ))}
-            {debugExecutions.length === 0 && agentLogs.length === 0 && (
-              <p className="text-slate-400 text-sm">No logs yet</p>
-            )}
-          </div>
+          <DebugPanel 
+            toolExecutions={debugExecutions}
+            agentLogs={agentLogs}
+            isProduction={process.env.NODE_ENV === 'production'}
+          />
         </section>
       </main>
       
