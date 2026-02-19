@@ -39,3 +39,6 @@ next-env.d.ts
 # database backups (large files)
 bkups/
 
+# archived files from pre-public release
+archive/
+
