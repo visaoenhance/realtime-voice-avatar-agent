@@ -31,6 +31,7 @@ import { Track, ConnectionState } from 'livekit-client';
 import { CustomerProfileCard, RestaurantSearchCard, RestaurantMenuCard, ShoppingCartCard, MenuItemSpotlightCard, FoodImagePreviewCard, RestaurantRecommendationCard, OrderConfirmationCard } from '@/components/food-cards';
 import DebugPanel from '@/components/DebugPanel';
 import FoodCourtHeader from '@/components/FoodCourtHeader';
+import LemonsliceAvatar from '@/components/LemonsliceAvatar';
 
 const LIVEKIT_TOKEN_ENDPOINT = "/api/livekit-agentserver/token";
 
@@ -1160,7 +1161,7 @@ function VoiceAssistantControls({
         </div>
       )}
 
-      {/* Connection Status */}
+      {/* Connection Status - Full Width */}
       <div className="flex items-center justify-center gap-2 mb-4">
         <div className={`w-3 h-3 rounded-full ${agentJoined ? 'bg-green-500 animate-pulse' : isConnected ? 'bg-amber-400' : 'bg-slate-400'}`} />
         <span className="text-sm font-semibold text-slate-700">
@@ -1168,8 +1169,12 @@ function VoiceAssistantControls({
         </span>
       </div>
 
-      {/* Big Microphone Button */}
-      <div className="mb-4">
+      {/* 50/50 Split: Controls (Left) | Avatar (Right) */}
+      <div className="grid md:grid-cols-2 gap-4 mb-4">
+        {/* Left Column: Microphone Controls */}
+        <div className="space-y-4">
+          {/* Big Microphone Button */}
+          <div>
         <button
           onClick={toggleMicrophone}
           disabled={!agentJoined}
@@ -1197,9 +1202,39 @@ function VoiceAssistantControls({
             </div>
           )}
         </button>
+          </div>
+
+          {/* Microphone Muted Notice */}
+          {!isMicEnabled && (
+            <div className="rounded-xl flex flex-col items-center justify-center bg-gradient-to-r from-red-100 to-red-200 border-2 border-red-400 p-4">
+              <p className="text-2xl mb-2">🔇</p>
+              <p className="text-sm font-bold text-red-900">MICROPHONE MUTED</p>
+              <p className="text-xs text-red-700 text-center mt-1">Agent CANNOT hear you</p>
+            </div>
+          )}
+
+          {/* Quick Start Instructions */}
+          {!isMicEnabled && (
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+              <p className="font-semibold mb-1">🎯 Quick Start:</p>
+              <ol className="list-decimal list-inside space-y-1 text-[11px]">
+                <li>Click microphone button above</li>
+                <li>Allow browser microphone access</li>
+                <li>Speak naturally: "I want Thai food"</li>
+              </ol>
+            </div>
+          )}
+        </div>
+
+        {/* Right Column: Avatar */}
+        <div className="flex items-center justify-center">
+          <div className="w-full aspect-[368/560] max-h-[500px] bg-slate-100 rounded-xl shadow-lg overflow-hidden border border-slate-200">
+            <LemonsliceAvatar className="w-full h-full" />
+          </div>
+        </div>
       </div>
 
-      {/* Audio Level Visualization */}
+      {/* Audio Level Visualization - Full Width Below Split */}
       {isMicEnabled && micTrack && localParticipant && (
         <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-green-50 to-green-100 border-2 border-green-300">
           <div className="text-xs uppercase tracking-wide font-semibold text-green-700 mb-2 text-center">
@@ -1226,8 +1261,8 @@ function VoiceAssistantControls({
         </div>
       )}
 
-      {/* Voice State Indicator */}
-      {isMicEnabled ? (
+      {/* Voice State Indicator - Full Width */}
+      {isMicEnabled && (
         <div className={`mb-4 h-24 rounded-xl flex flex-col items-center justify-center transition-all duration-300 ${
           state === "listening" ? 'bg-gradient-to-r from-blue-200 to-blue-300' :
           state === "thinking" ? 'bg-gradient-to-r from-amber-200 to-amber-300 animate-pulse' :
@@ -1258,29 +1293,9 @@ function VoiceAssistantControls({
             </p>
           )}
         </div>
-      ) : (
-        <div className="mb-4 h-24 rounded-xl flex flex-col items-center justify-center bg-gradient-to-r from-red-100 to-red-200 border-2 border-red-400 animate-pulse">
-          <p className="text-3xl mb-2">🔇</p>
-          <p className="text-lg font-bold text-red-900">MICROPHONE MUTED</p>
-          <p className="text-xs text-red-700 font-semibold">Agent CANNOT hear you - Safe to speak off-camera</p>
-        </div>
-      )}
-
-      {/* Instructions */}
-      {!isMicEnabled && (
-        <div className="mb-3 rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
-          <p className="font-semibold mb-1">🎯 Quick Start:</p>
-          <ol className="list-decimal list-inside space-y-1">
-            <li>Click the big microphone button above</li>
-            <li>Allow browser to access your microphone</li>
-            <li>Speak naturally - say "I want Thai food"</li>
-            <li>Watch the status change as agent responds</li>
-            <li>Food cards appear automatically below</li>
-          </ol>
-        </div>
       )}
       
-      {/* Demo Recording Tip */}
+      {/* Demo Recording Tip - Full Width */}
       {isMicEnabled && (
         <div className="mb-3 rounded-lg bg-purple-50 border border-purple-200 p-3 text-xs text-purple-800">
           <p className="font-semibold mb-1">🎬 Demo Recording Tip:</p>

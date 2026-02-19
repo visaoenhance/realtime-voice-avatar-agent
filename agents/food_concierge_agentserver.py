@@ -52,7 +52,7 @@ from livekit.agents import (
     function_tool,
     inference,
 )
-from livekit.plugins import openai, silero
+from livekit.plugins import openai, silero, lemonslice
 # from livekit.plugins.turn_detector.multilingual import MultilingualModel  # Not available in current env
 
 # Import our database functions
@@ -943,7 +943,7 @@ async def food_concierge_agent(ctx: JobContext) -> None:
             result_preview = str(result.result)[:200] if result.result else "None"
             logger.info(f"✅ TOOL RESULT: {result.tool_call_id} -> {result_preview}...")
     
-    # Start the agent
+    # Start the agent session FIRST
     await session.start(
         agent=FoodConciergeAgent(userdata=userdata),
         room=ctx.room
@@ -952,6 +952,111 @@ async def food_concierge_agent(ctx: JobContext) -> None:
     # Now that we're connected, store local participant for data publishing
     userdata.local_participant = ctx.room.local_participant
     logger.info("✅ Agent connected, local participant stored")
+    
+    # ========================================================================
+    # LEMONSLICE AVATAR (Optional) - Start AFTER session is running
+    # ========================================================================
+    logger.info("🔍 Checking for LemonSlice avatar configuration...")
+    # Plugin expects LEMONSLICE_IMAGE_URL (not LEMONSLICE_AVATAR_IMAGE_URL)
+    avatar_image_url = os.getenv("LEMONSLICE_IMAGE_URL")
+    avatar_api_key = os.getenv("LEMONSLICE_API_KEY")
+    
+    # Debug logging
+    logger.info(f"🔍 Avatar Image URL: {avatar_image_url[:50] + '...' if avatar_image_url else 'None'}")
+    logger.info(f"🔍 Avatar API Key: {'***' + avatar_api_key[-4:] if avatar_api_key else 'None'}")
+    
+    if avatar_image_url and avatar_api_key:
+        try:
+            logger.info("🎭 Starting LemonSlice avatar...")
+            avatar_session = lemonslice.AvatarSession(
+                agent_image_url=avatar_image_url,
+                # Note: Only provide agent_image_url OR agent_id, not both
+                agent_prompt="You are a friendly and enthusiastic food ordering assistant. Be warm, helpful, and excited about food!",
+                idle_timeout=120
+            )
+            # Start avatar - needs both session and room
+            await avatar_session.start(session, ctx.room)
+            logger.info("✅ LemonSlice avatar started successfully")
+            
+            # Send success status to frontend
+            try:
+                status_data = {
+                    "type": "avatar_status",
+                    "status": "success",
+                    "message": "Avatar connected successfully"
+                }
+                await userdata.local_participant.publish_data(
+                    json.dumps(status_data).encode(),
+                    reliable=True
+                )
+            except Exception as send_err:
+                logger.warning(f"Failed to send avatar success status: {send_err}")
+                
+        except Exception as e:
+            logger.error(f"⚠️ Avatar initialization failed (continuing without avatar): {e}")
+            
+            # Extract error details
+            error_message = str(e)
+            error_type = "system_error"
+            status_code = None
+            
+            if hasattr(e, '__cause__') and e.__cause__:
+                if hasattr(e.__cause__, 'status_code'):
+                    status_code = e.__cause__.status_code
+                if hasattr(e.__cause__, 'body'):
+                    try:
+                        import json as json_lib
+                        body_data = json_lib.loads(e.__cause__.body)
+                        if 'detail' in body_data:
+                            error_message = body_data['detail']
+                    except:
+                        pass
+            
+            # Determine error type based on status code
+            if status_code == 402:
+                error_type = "billing_error"
+                error_message = "Insufficient funds - Please add credits to your LemonSlice account"
+            elif status_code == 401 or status_code == 403:
+                error_type = "auth_error"
+                error_message = "Invalid API key - Please check your LemonSlice credentials"
+            elif status_code == 400 or status_code == 422:
+                error_type = "config_error"
+                error_message = "Invalid avatar configuration - Please check your image URL"
+            elif status_code and status_code >= 500:
+                error_type = "server_error"
+                error_message = "LemonSlice service temporarily unavailable"
+            
+            # Send error status to frontend
+            try:
+                status_data = {
+                    "type": "avatar_status",
+                    "status": "error",
+                    "error_type": error_type,
+                    "message": error_message,
+                    "status_code": status_code
+                }
+                await userdata.local_participant.publish_data(
+                    json.dumps(status_data).encode(),
+                    reliable=True
+                )
+                logger.info(f"📤 Sent avatar error status to frontend: {error_type}")
+            except Exception as send_err:
+                logger.warning(f"Failed to send avatar error status: {send_err}")
+    else:
+        logger.info("ℹ️ LemonSlice avatar not configured (missing API key or image URL)")
+        # Send not configured status to frontend
+        try:
+            status_data = {
+                "type": "avatar_status",
+                "status": "disabled",
+                "message": "Avatar not configured"
+            }
+            await userdata.local_participant.publish_data(
+                json.dumps(status_data).encode(),
+                reliable=True
+            )
+        except Exception as send_err:
+            logger.warning(f"Failed to send avatar disabled status: {send_err}")
     
     # Generate initial greeting (like native agent)
     logger.info("🎙️ Generating greeting...")
