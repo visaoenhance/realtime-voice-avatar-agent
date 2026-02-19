@@ -247,6 +247,14 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for environment switching details.
 - View AgentServer logs for errors
 - Verify STT/LLM/TTS providers are configured
 
+## Security
+
+- **Never commit `.env.local`** - It contains your real credentials and is gitignored
+- **Rotate keys immediately** if you accidentally paste them into logs or public channels
+- **Use least-privilege keys** - Use Supabase service role key only server-side, never in client code
+- **Production safeguards** - Debug endpoints return 404 when `NODE_ENV=production`
+- **Report vulnerabilities** - See [SECURITY.md](SECURITY.md) for responsible disclosure
+
 ## Documentation
 
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Detailed system architecture and design decisions
