@@ -7,7 +7,7 @@ If you discover a security vulnerability in this project, please report it priva
 ### How to Report
 
 1. **Do NOT open a public issue** for security vulnerabilities
-2. Email security details to: **emiliotaylor@visaoenhance.com**
+2. Email security details to: **info@visaoenhance.com**
 3. Include:
    - Description of the vulnerability
    - Steps to reproduce
@@ -78,4 +78,4 @@ We take security seriously. Critical security updates will be:
 
 For general security questions (not vulnerability reports), open a GitHub Discussion.
 
-For vulnerability reports, email: **emiliotaylor@visaoenhance.com**
+For vulnerability reports, email: **info@visaoenhance.com**
