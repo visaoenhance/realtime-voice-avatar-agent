@@ -53,6 +53,8 @@ The agent has 9 capability tools:
 
 ## Quick Start
 
+> **⚠️ Demo Mode:** This application uses a shared demo profile (`DEMO_PROFILE_ID`). All users see the same cart and orders. For production use with individual user accounts, implement authentication (see [Supabase Auth](https://supabase.com/docs/guides/auth) or [NextAuth.js](https://next-auth.js.org/)).
+
 ### Prerequisites
 
 - **Node.js** 18+ and npm

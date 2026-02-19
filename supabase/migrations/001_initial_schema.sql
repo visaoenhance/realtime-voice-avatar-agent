@@ -315,85 +315,6 @@ CREATE TABLE IF NOT EXISTS "public"."fc_restaurants" (
 ALTER TABLE "public"."fc_restaurants" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."mvnte_parental_controls" (
-    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
-    "profile_id" "uuid" NOT NULL,
-    "max_rating" "text" DEFAULT 'PG-13'::"text",
-    "blocked_genres" "text"[],
-    "time_restrictions" "jsonb",
-    "pin_required" boolean DEFAULT true,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()),
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"())
-);
-
-
-ALTER TABLE "public"."mvnte_parental_controls" OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "public"."mvnte_preferences" (
-    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
-    "profile_id" "uuid" NOT NULL,
-    "favorite_genres" "text"[],
-    "blocked_ratings" "text"[],
-    "autoplay_enabled" boolean DEFAULT true,
-    "subtitle_language" "text" DEFAULT 'en'::"text",
-    "audio_language" "text" DEFAULT 'en'::"text",
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()),
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"())
-);
-
-
-ALTER TABLE "public"."mvnte_preferences" OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "public"."mvnte_profiles" (
-    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
-    "household_name" "text" NOT NULL,
-    "subscription_tier" "text" DEFAULT 'free'::"text",
-    "max_profiles" integer DEFAULT 4,
-    "parental_controls_enabled" boolean DEFAULT false,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()),
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"())
-);
-
-
-ALTER TABLE "public"."mvnte_profiles" OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "public"."mvnte_titles" (
-    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
-    "title" "text" NOT NULL,
-    "type" "text" NOT NULL,
-    "genre" "text"[],
-    "release_year" integer,
-    "rating" "text",
-    "duration_minutes" integer,
-    "description" "text",
-    "poster_url" "text",
-    "trailer_url" "text",
-    "is_available" boolean DEFAULT true,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()),
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"())
-);
-
-
-ALTER TABLE "public"."mvnte_titles" OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "public"."mvnte_view_history" (
-    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
-    "profile_id" "uuid" NOT NULL,
-    "title_id" "uuid" NOT NULL,
-    "watch_duration_minutes" integer DEFAULT 0,
-    "completion_percentage" numeric(5,2) DEFAULT 0,
-    "last_watched_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()),
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"())
-);
-
-
-ALTER TABLE "public"."mvnte_view_history" OWNER TO "postgres";
-
-
 ALTER TABLE ONLY "public"."fc_cart_item_options"
     ADD CONSTRAINT "fc_cart_item_options_pkey" PRIMARY KEY ("id");
 
@@ -489,31 +410,6 @@ ALTER TABLE ONLY "public"."fc_restaurants"
 
 
 
-ALTER TABLE ONLY "public"."mvnte_parental_controls"
-    ADD CONSTRAINT "mvnte_parental_controls_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "public"."mvnte_preferences"
-    ADD CONSTRAINT "mvnte_preferences_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "public"."mvnte_profiles"
-    ADD CONSTRAINT "mvnte_profiles_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "public"."mvnte_titles"
-    ADD CONSTRAINT "mvnte_titles_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "public"."mvnte_view_history"
-    ADD CONSTRAINT "mvnte_view_history_pkey" PRIMARY KEY ("id");
-
-
-
 CREATE INDEX "fc_carts_profile_id_idx" ON "public"."fc_carts" USING "btree" ("profile_id");
 
 
@@ -547,22 +443,6 @@ CREATE INDEX "fc_restaurants_cuisine_group_idx" ON "public"."fc_restaurants" USI
 
 
 CREATE INDEX "fc_restaurants_is_active_idx" ON "public"."fc_restaurants" USING "btree" ("is_active");
-
-
-
-CREATE INDEX "mvnte_titles_is_available_idx" ON "public"."mvnte_titles" USING "btree" ("is_available");
-
-
-
-CREATE INDEX "mvnte_titles_type_idx" ON "public"."mvnte_titles" USING "btree" ("type");
-
-
-
-CREATE INDEX "mvnte_view_history_profile_id_idx" ON "public"."mvnte_view_history" USING "btree" ("profile_id");
-
-
-
-CREATE INDEX "mvnte_view_history_title_id_idx" ON "public"."mvnte_view_history" USING "btree" ("title_id");
 
 
 
@@ -676,26 +556,6 @@ ALTER TABLE ONLY "public"."fc_preferences"
 
 
 
-ALTER TABLE ONLY "public"."mvnte_parental_controls"
-    ADD CONSTRAINT "mvnte_parental_controls_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "public"."mvnte_profiles"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."mvnte_preferences"
-    ADD CONSTRAINT "mvnte_preferences_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "public"."mvnte_profiles"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."mvnte_view_history"
-    ADD CONSTRAINT "mvnte_view_history_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "public"."mvnte_profiles"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."mvnte_view_history"
-    ADD CONSTRAINT "mvnte_view_history_title_id_fkey" FOREIGN KEY ("title_id") REFERENCES "public"."mvnte_titles"("id") ON DELETE CASCADE;
-
-
-
 CREATE POLICY "Public layouts read" ON "public"."fc_layouts" FOR SELECT USING (true);
 
 
@@ -716,19 +576,11 @@ CREATE POLICY "Public menu sections read" ON "public"."fc_menu_sections" FOR SEL
 
 
 
-CREATE POLICY "Public movie titles read" ON "public"."mvnte_titles" FOR SELECT USING (true);
-
-
-
 CREATE POLICY "Public restaurants read" ON "public"."fc_restaurants" FOR SELECT USING (true);
 
 
 
 CREATE POLICY "Users can access own preferences" ON "public"."fc_preferences" USING ((("auth"."uid"())::"text" = ("profile_id")::"text"));
-
-
-
-CREATE POLICY "Users can access own view history" ON "public"."mvnte_view_history" USING ((("auth"."uid"())::"text" = ("profile_id")::"text"));
 
 
 
@@ -746,19 +598,7 @@ CREATE POLICY "Users can manage own feedback" ON "public"."fc_feedback" USING ((
 
 
 
-CREATE POLICY "Users can manage own movie preferences" ON "public"."mvnte_preferences" USING ((("auth"."uid"())::"text" = ("profile_id")::"text"));
-
-
-
-CREATE POLICY "Users can manage own movie profile" ON "public"."mvnte_profiles" USING ((("auth"."uid"())::"text" = ("id")::"text"));
-
-
-
 CREATE POLICY "Users can manage own orders" ON "public"."fc_orders" USING ((("auth"."uid"())::"text" = ("profile_id")::"text"));
-
-
-
-CREATE POLICY "Users can manage own parental controls" ON "public"."mvnte_parental_controls" USING ((("auth"."uid"())::"text" = ("profile_id")::"text"));
 
 
 
@@ -812,21 +652,6 @@ ALTER TABLE "public"."fc_profiles" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."fc_restaurants" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."mvnte_parental_controls" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."mvnte_preferences" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."mvnte_profiles" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."mvnte_titles" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."mvnte_view_history" ENABLE ROW LEVEL SECURITY;
 
 
 GRANT USAGE ON SCHEMA "public" TO "postgres";
@@ -935,36 +760,6 @@ GRANT ALL ON TABLE "public"."fc_profiles" TO "service_role";
 GRANT ALL ON TABLE "public"."fc_restaurants" TO "anon";
 GRANT ALL ON TABLE "public"."fc_restaurants" TO "authenticated";
 GRANT ALL ON TABLE "public"."fc_restaurants" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."mvnte_parental_controls" TO "anon";
-GRANT ALL ON TABLE "public"."mvnte_parental_controls" TO "authenticated";
-GRANT ALL ON TABLE "public"."mvnte_parental_controls" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."mvnte_preferences" TO "anon";
-GRANT ALL ON TABLE "public"."mvnte_preferences" TO "authenticated";
-GRANT ALL ON TABLE "public"."mvnte_preferences" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."mvnte_profiles" TO "anon";
-GRANT ALL ON TABLE "public"."mvnte_profiles" TO "authenticated";
-GRANT ALL ON TABLE "public"."mvnte_profiles" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."mvnte_titles" TO "anon";
-GRANT ALL ON TABLE "public"."mvnte_titles" TO "authenticated";
-GRANT ALL ON TABLE "public"."mvnte_titles" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."mvnte_view_history" TO "anon";
-GRANT ALL ON TABLE "public"."mvnte_view_history" TO "authenticated";
-GRANT ALL ON TABLE "public"."mvnte_view_history" TO "service_role";
 
 
 

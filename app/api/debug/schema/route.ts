@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseServer';
 
 export async function GET() {
+  // Disable in production for security
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Debug endpoints disabled in production' }, { status: 403 });
+  }
+
   if (!supabase) {
     return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
   }
