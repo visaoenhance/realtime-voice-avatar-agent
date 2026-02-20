@@ -65,9 +65,28 @@ The agent has 9 capability tools:
 8. **`update_cart_quantity`** - Change item quantities
 9. **`quick_checkout`** - Complete order and clear cart
 
-## Quick Start
+## ⚠️ Security & Production Notes (Demo Repo)
+
+This repository is a **demo / reference implementation**. It is intentionally optimized for learning, not production hardening.
+
+### Known Limitations (Do Not Deploy As-Is)
+- **No authentication** - Requests are not tied to real user identities
+- **No rate limiting** - Endpoints can be spammed (token generation + API routes)
+- **CORS is not locked down** - If deployed publicly, cross-origin calls may be possible
+- **Shared demo profile** - Single `DEMO_PROFILE_ID` simulates user flow for all visitors
+- **Debug endpoints exposed** - Protected by `NODE_ENV` check but discoverable
+
+### If You Want to Deploy to Production
+See [`SECURITY.md`](./SECURITY.md) for a complete hardening checklist including:
+- Rate limiting configuration
+- CORS setup
+- Authentication implementation
+- Environment variable security
+- API endpoint protection
 
 > **⚠️ Demo Mode:** This application uses a shared demo profile (`DEMO_PROFILE_ID`). All users see the same cart and orders. For production use with individual user accounts, implement authentication (see [Supabase Auth](https://supabase.com/docs/guides/auth) or [NextAuth.js](https://next-auth.js.org/)).
+
+## Quick Start
 
 ### Prerequisites
 
