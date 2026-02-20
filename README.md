@@ -5,7 +5,8 @@ A real-time voice AI agent for food ordering, built with [LiveKit AgentServer](h
 ## Features
 
 - 🎤 **Voice-first interaction** - Natural spoken conversation powered by WebRTC
-- 🍔 **9 function tools** - Search restaurants, browse menus, manage cart, checkout
+- � **Realistic voice avatar** (optional) - LemonSlice integration with automatic lip-sync
+- �🍔 **9 function tools** - Search restaurants, browse menus, manage cart, checkout
 - 🗄️ **Supabase backend** - PostgreSQL database for restaurants, menu items, carts, and orders
 - 🔄 **Real-time streaming** - Low-latency audio with LiveKit infrastructure
 - 🌐 **Multi-language support** - Automatic language detection and responses
@@ -17,6 +18,7 @@ A real-time voice AI agent for food ordering, built with [LiveKit AgentServer](h
 - **Python AgentServer** - `agents/food_concierge_agentserver.py` (LiveKit AgentServer framework)
 - **Next.js 14** - Frontend UI with App Router (`app/food/concierge-agentserver/`)
 - **LiveKit Cloud** - WebRTC infrastructure for real-time audio streaming
+- **LemonSlice** (optional) - Realistic voice avatar with automatic lip-sync
 - **OpenAI** - GPT-4o-mini (LLM), Whisper (STT), TTS (voice synthesis)
 - **Deepgram Nova-3** - Alternative STT with multichannel support
 - **Supabase** - PostgreSQL database (local or cloud)
@@ -150,7 +152,7 @@ tail -f agents/*.log
 ### 5. Test the Voice Agent
 
 1. Open http://localhost:3000/food/concierge-agentserver
-2. Click "Connect" to establish WebRTC connection
+2. Click "🎙️ Start Conversation" to establish WebRTC connection
 3. Allow microphone permissions
 4. Start speaking! Try:
    - "Show me Mexican restaurants"
@@ -158,6 +160,35 @@ tail -f agents/*.log
    - "Add two chicken tacos to my cart"
    - "What's in my cart?"
    - "Place my order"
+
+### Optional: Enable Voice Avatar
+
+For a more engaging visual experience, add a realistic voice avatar:
+
+1. **Sign up at [LemonSlice](https://lemonslice.com)**
+2. **Get API key** from https://lemonslice.com/agents/api
+3. **Choose avatar method:**
+   - **Option A**: Use a pre-built agent from https://lemonslice.com/agents
+   - **Option B**: Use your own custom image (368×560px, publicly accessible URL)
+4. **Configure `.env.local`:**
+   ```bash
+   LEMONSLICE_API_KEY=sk_lemon_xxxxx
+   # Option A: Pre-built agent
+   LEMONSLICE_AGENT_ID=agent_xxxxx
+   # Option B: Custom image
+   # LEMONSLICE_IMAGE_URL=https://yourdomain.com/avatar.jpg
+   ```
+5. **Install plugin:**
+   ```bash
+   cd agents
+   pip install "livekit-agents[lemonslice]~=1.3"
+   ```
+6. **Restart agent:** `./start-dev.sh`
+7. **Toggle avatar** during session using the 🎭 switch (perfect for demos!)
+
+📖 **Full guide:** See [docs/LEMONSLICE.md](docs/LEMONSLICE.md) for detailed setup, troubleshooting, and image requirements.
+
+**Note:** The avatar feature is completely optional. The voice concierge works perfectly without it!
 
 ## Project Structure
 
@@ -174,6 +205,7 @@ tail -f agents/*.log
 │       └── route.ts                    # Token generation endpoint
 ├── components/
 │   ├── FoodCourtHeader.tsx             # Header component
+│   ├── LemonsliceAvatar.tsx            # Voice avatar component (optional)
 │   └── food-cards/                     # Restaurant/menu card components
 ├── lib/
 │   ├── supabaseConfig.ts               # Supabase client config
@@ -186,7 +218,8 @@ tail -f agents/*.log
 ├── docs/
 │   ├── ARCHITECTURE.md                 # System architecture details
 │   ├── SETUP.md                        # Detailed setup guide
-│   └── DEPLOYMENT.md                   # Production deployment
+│   ├── DEPLOYMENT.md                   # Production deployment
+│   └── LEMONSLICE.md                   # Voice avatar integration guide
 ├── .env.example                        # Environment template
 ├── package.json                        # Node.js dependencies
 └── README.md                           # This file
@@ -260,6 +293,7 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for environment switching details.
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Detailed system architecture and design decisions
 - **[docs/SETUP.md](docs/SETUP.md)** - Comprehensive setup guide with troubleshooting
 - **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Production deployment and environment management
+- **[docs/LEMONSLICE.md](docs/LEMONSLICE.md)** - Voice avatar integration guide (optional feature)
 - **[agents/README.md](agents/README.md)** - Python AgentServer implementation details
 
 ## Contributing
@@ -291,6 +325,7 @@ Built by **Visao Enhance** - AI consulting and development services.
 
 Built with:
 - [LiveKit AgentServer](https://docs.livekit.io/agents/) - Real-time voice infrastructure
+- [LemonSlice](https://lemonslice.com) - Realistic voice avatars (optional)
 - [OpenAI](https://openai.com) - LLM and TTS
 - [Deepgram](https://deepgram.com) - Speech-to-text
 - [Supabase](https://supabase.com) - PostgreSQL backend

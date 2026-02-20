@@ -26,6 +26,12 @@ Complete setup guide for the Food Court Voice Concierge application.
   - Create API key
   - Ensure credits are available
 
+- **LemonSlice** (optional - for voice avatar feature)
+  - Sign up: https://lemonslice.com
+  - Get API key from: https://lemonslice.com/agents/api
+  - Either create a custom agent or prepare a custom image URL (368×560px)
+  - See [LEMONSLICE.md](LEMONSLICE.md) for detailed setup
+
 - **Supabase** (free tier available)
   - Sign up: https://supabase.com
   - Create a new project

@@ -4,6 +4,8 @@
 
 This document explains how the **LiveKit AgentServer framework** powers the Food Court Concierge voice experience. It covers the complete flow from voice input to voice output, showing how LiveKit, Python agents, OpenAI, and Supabase work together for real-time voice interactions.
 
+> **Note**: This architecture supports optional **LemonSlice voice avatar** integration. When enabled, an animated avatar joins as a video participant with automatic lip-sync. See [docs/LEMONSLICE.md](LEMONSLICE.md) for setup details.
+
 **Target Audience**: Beginner to Intermediate developers
 **Implementation**: 
 - Python Agent: `/agents/food_concierge_agentserver.py`
