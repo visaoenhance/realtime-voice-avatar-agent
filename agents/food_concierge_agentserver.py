@@ -962,10 +962,14 @@ async def food_concierge_agent(ctx: JobContext) -> None:
     avatar_agent_id = os.getenv("LEMONSLICE_AGENT_ID")
     avatar_api_key = os.getenv("LEMONSLICE_API_KEY")
     
-    # Debug logging
-    logger.info(f"🔍 Avatar Image URL: {avatar_image_url[:50] + '...' if avatar_image_url else 'None'}")
-    logger.info(f"🔍 Avatar Agent ID: {avatar_agent_id if avatar_agent_id else 'None'}")
-    logger.info(f"🔍 Avatar API Key: {'***' + avatar_api_key[-4:] if avatar_api_key else 'None'}")
+    # Configuration logging (safe values only)
+    if avatar_agent_id:
+        logger.info(f"🔍 Avatar Agent ID: {avatar_agent_id}")
+    elif avatar_image_url:
+        logger.info("🔍 Avatar configured with custom image URL")
+    
+    if avatar_api_key:
+        logger.info("🔍 Avatar API Key: Configured")
     
     if (avatar_image_url or avatar_agent_id) and avatar_api_key:
         try:
