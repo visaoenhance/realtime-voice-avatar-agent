@@ -1,10 +1,30 @@
 # Documentation Overview
 
-This directory contains comprehensive documentation for the three voice agent architectures implemented in this project.
+This directory contains comprehensive documentation for the **LiveKit + LemonSlice voice avatar demo** and the voice agent architectures implemented in this project.
+
+> **Featured**: This implementation showcases [LemonSlice voice avatar](./LEMONSLICE.md) integration with LiveKit AgentServer for realistic AI avatars with automatic lip-sync.
 
 ---
 
 ## 📚 Documentation Files
+
+### 🧑 [LEMONSLICE.md](./LEMONSLICE.md)
+**LemonSlice Voice Avatar Integration Guide**
+
+**Contents**:
+- Complete setup and configuration guide
+- Environment variable reference
+- Custom image requirements and hosting options
+- Pre-built agent selection
+- Troubleshooting common issues
+- Cost considerations
+- Security best practices
+
+**Best for**: Setting up voice avatars, customizing avatar appearance, production deployment
+
+**Keywords**: `livekit lemonslice`, `voice avatar integration`, `ai avatar lip-sync`, `avatar setup guide`
+
+---
 
 ### 🏗️ [VOICE_AGENT_ARCHITECTURES.md](./VOICE_AGENT_ARCHITECTURES.md)
 **Complete technical documentation and comparison guide**

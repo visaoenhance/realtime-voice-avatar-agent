@@ -1,24 +1,36 @@
-# Food Court Voice Concierge - LiveKit AgentServer
+# LiveKit + LemonSlice Voice Avatar Demo: Food Court Concierge
 
-A real-time voice AI agent for food ordering, built with [LiveKit AgentServer](https://docs.livekit.io/agents/) framework. Users can browse restaurants, view menus, manage their cart, and place orders entirely through natural conversation.
+This demo showcases **[LemonSlice](https://lemonslice.ai/) voice avatar** integration with **[LiveKit AgentServer](https://docs.livekit.io/agents/)** framework. Experience a realistic AI avatar with automatic lip-sync responding to natural voice conversations for food ordering.
+
+## About This Demo
+
+This repository demonstrates how to integrate **LemonSlice voice avatars** with **LiveKit's AgentServer framework** to create engaging conversational AI experiences. The food ordering scenario showcases:
+
+- Real-time avatar video with automatic lip-sync
+- Voice-to-voice natural language interactions
+- Function calling for complex workflows (9 tools)
+- WebRTC low-latency audio/video streaming
+- Custom avatar images or pre-built agent personalities
+
+**Keywords**: `livekit`, `lemonslice`, `voice avatar`, `ai avatar`, `lip-sync`, `agentserver`, `real-time voice`, `webrtc avatar`
 
 ## Features
 
+- 🧑 **Realistic voice avatar** - LemonSlice integration with automatic lip-sync and custom images
 - 🎤 **Voice-first interaction** - Natural spoken conversation powered by WebRTC
-- � **Realistic voice avatar** (optional) - LemonSlice integration with automatic lip-sync
-- �🍔 **9 function tools** - Search restaurants, browse menus, manage cart, checkout
+- 🍔 **9 function tools** - Search restaurants, browse menus, manage cart, checkout
 - 🗄️ **Supabase backend** - PostgreSQL database for restaurants, menu items, carts, and orders
-- 🔄 **Real-time streaming** - Low-latency audio with LiveKit infrastructure
+- 🔄 **Real-time streaming** - Low-latency audio/video with LiveKit infrastructure
 - 🌐 **Multi-language support** - Automatic language detection and responses
 
 ## Architecture
 
 ### Tech Stack
 
+- **LemonSlice** - Realistic voice avatar with automatic lip-sync
+- **LiveKit Cloud** - WebRTC infrastructure for real-time audio/video streaming
 - **Python AgentServer** - `agents/food_concierge_agentserver.py` (LiveKit AgentServer framework)
 - **Next.js 14** - Frontend UI with App Router (`app/food/concierge-agentserver/`)
-- **LiveKit Cloud** - WebRTC infrastructure for real-time audio streaming
-- **LemonSlice** (optional) - Realistic voice avatar with automatic lip-sync
 - **OpenAI** - GPT-4o-mini (LLM), Whisper (STT), TTS (voice synthesis)
 - **Deepgram Nova-3** - Alternative STT with multichannel support
 - **Supabase** - PostgreSQL database (local or cloud)
@@ -324,8 +336,8 @@ Built by **Visao Enhance** - AI consulting and development services.
 ## Acknowledgments
 
 Built with:
-- [LiveKit AgentServer](https://docs.livekit.io/agents/) - Real-time voice infrastructure
-- [LemonSlice](https://lemonslice.com) - Realistic voice avatars (optional)
+- [LemonSlice](https://lemonslice.ai) - Realistic voice avatars with lip-sync
+- [LiveKit AgentServer](https://docs.livekit.io/agents/) - Real-time voice/video infrastructure
 - [OpenAI](https://openai.com) - LLM and TTS
 - [Deepgram](https://deepgram.com) - Speech-to-text
 - [Supabase](https://supabase.com) - PostgreSQL backend
