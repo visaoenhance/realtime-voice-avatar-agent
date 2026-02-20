@@ -30,7 +30,7 @@ export default function LandingPageHeader({ environmentBadge }: LandingPageHeade
             href="/food/concierge-agentserver"
             className="hidden md:flex items-center gap-2 rounded-full border border-slate-300 px-4 py-1.5 text-xs uppercase tracking-[0.3em] text-slate-600 transition hover:border-emerald-400 hover:text-emerald-600"
           >
-            🎙️ Concierge
+            🎙️ Voice Concierge - LiveKit with LemonSlice
           </a>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-[0.3em]">

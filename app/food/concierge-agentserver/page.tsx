@@ -539,17 +539,7 @@ export default function AgentServerConcierge() {
         onCartClick={openCartModal}
       />
 
-      <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
-        {/* Hero */}
-        <section className="text-center">
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900 mb-3">
-            🎙️ Voice Food Concierge (AgentServer Pattern)
-          </h1>
-          <p className="text-lg text-slate-600 max-w-xl mx-auto">
-            Full-featured voice ordering with cards, cart, and checkout using the new AgentServer v1.4.1+ pattern
-          </p>
-        </section>
-
+      <main className="mx-auto max-w-6xl px-6 py-6 space-y-8">
         {/* Existing Session Warning */}
         {existingSession && (
           <section className="rounded-3xl border-2 border-amber-400 bg-amber-50 p-6 shadow-sm">
@@ -571,10 +561,10 @@ export default function AgentServerConcierge() {
           <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
             <div className="flex flex-col items-center text-center">
               <h2 className="text-2xl font-semibold text-slate-900 mb-3">
-                Connect to Food Concierge
+                Connect to Voice Concierge
               </h2>
               <p className="text-slate-600 mb-6 max-w-md">
-                Start a voice conversation with your AI food assistant. Powered by AgentServer v1.4.1+ with full UI/UX parity.
+                Talk to your AI food assistant with realistic voice avatar. Powered by LiveKit and LemonSlice.
               </p>
 
               {error && (
@@ -615,14 +605,14 @@ export default function AgentServerConcierge() {
               </div>
 
               <div className="mt-8 p-4 bg-emerald-50 border border-emerald-200 rounded-xl w-full max-w-md">
-                <p className="text-xs font-semibold text-emerald-800 mb-2">✅ NEW: AgentServer Pattern</p>
+                <p className="text-xs font-semibold text-emerald-800 mb-2">✨ Features:</p>
                 <ul className="text-xs text-emerald-700 space-y-1">
-                  <li>• inference.STT/LLM/TTS unified API</li>
-                  <li>• Typed userdata with RunContext</li>
-                  <li>• No schema validation errors</li>
-                  <li>• Turn detection + max_tool_steps</li>
-                  <li>• Following drive-thru reference patterns</li>
-                  <li>• Full card rendering for tool results</li>
+                  <li>• 🎭 Realistic voice avatar with lip-sync (LemonSlice)</li>
+                  <li>• 🎙️ Natural voice conversation (LiveKit)</li>
+                  <li>• 🛒 Real-time cart updates</li>
+                  <li>• 🍽️ Restaurant search & menu browsing</li>
+                  <li>• ✅ Complete checkout experience</li>
+                  <li>• 📱 Responsive design</li>
                 </ul>
               </div>
             </div>
@@ -902,6 +892,7 @@ function VoiceAssistantControls({
   const [agentJoined, setAgentJoined] = React.useState(false);
   const [showAgentJoinedBanner, setShowAgentJoinedBanner] = React.useState(false);
   const [agentError, setAgentError] = React.useState<{type: string, message: string, timestamp: number} | null>(null);
+  const [showAvatar, setShowAvatar] = React.useState(false); // Start with avatar hidden for demos
   const hasAutoEnabledMic = React.useRef(false); // Track if we've already auto-enabled mic once
 
   const micTrack = localParticipant?.getTrackPublication(Track.Source.Microphone)?.track;
@@ -1162,15 +1153,37 @@ function VoiceAssistantControls({
       )}
 
       {/* Connection Status - Full Width */}
-      <div className="flex items-center justify-center gap-2 mb-4">
-        <div className={`w-3 h-3 rounded-full ${agentJoined ? 'bg-green-500 animate-pulse' : isConnected ? 'bg-amber-400' : 'bg-slate-400'}`} />
-        <span className="text-sm font-semibold text-slate-700">
-          {agentJoined ? '✓ Agent Ready' : isConnected ? 'Room Connected - Waiting for Agent...' : 'Connecting to LiveKit...'}
-        </span>
+      <div className="flex items-center justify-center gap-4 mb-4">
+        <div className="flex items-center gap-2">
+          <div className={`w-3 h-3 rounded-full ${agentJoined ? 'bg-green-500 animate-pulse' : isConnected ? 'bg-amber-400' : 'bg-slate-400'}`} />
+          <span className="text-sm font-semibold text-slate-700">
+            {agentJoined ? '✓ Agent Ready' : isConnected ? 'Room Connected - Waiting for Agent...' : 'Connecting to LiveKit...'}
+          </span>
+        </div>
+        
+        {/* Avatar Toggle */}
+        {agentJoined && (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 border border-purple-200">
+            <span className="text-xs font-semibold text-purple-700">🎭 Avatar</span>
+            <button
+              onClick={() => setShowAvatar(!showAvatar)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                showAvatar ? 'bg-purple-500' : 'bg-slate-300'
+              }`}
+              aria-label="Toggle avatar visibility"
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  showAvatar ? 'translate-x-5' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* 50/50 Split: Controls (Left) | Avatar (Right) */}
-      <div className="grid md:grid-cols-2 gap-4 mb-4">
+      {/* 50/50 Split (when avatar shown) or Full Width (when avatar hidden) */}
+      <div className={`grid gap-4 mb-4 ${showAvatar ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
         {/* Left Column: Microphone Controls */}
         <div className="space-y-4">
           {/* Big Microphone Button */}
@@ -1204,6 +1217,61 @@ function VoiceAssistantControls({
         </button>
           </div>
 
+          {/* Audio Level Visualization - Under Microphone */}
+          {isMicEnabled && micTrack && localParticipant && (
+            <div className="p-3 rounded-xl bg-gradient-to-r from-green-50 to-green-100 border-2 border-green-300">
+              <div className="text-xs uppercase tracking-wide font-semibold text-green-700 mb-2 text-center">
+                🎙️ Audio Levels
+              </div>
+              <div className="h-10 flex items-center justify-center">
+                <BarVisualizer 
+                  state={state}
+                  barCount={15}
+                  trackRef={{ 
+                    publication: localParticipant.getTrackPublication(Track.Source.Microphone), 
+                    source: Track.Source.Microphone,
+                    participant: localParticipant
+                  }}
+                  options={{ 
+                    minHeight: 3,
+                    maxHeight: 40,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Voice State Indicator - Under Microphone */}
+          {isMicEnabled && (
+            <div className={`rounded-xl flex flex-col items-center justify-center transition-all duration-300 py-3 ${
+              state === "listening" ? 'bg-gradient-to-r from-blue-200 to-blue-300' :
+              state === "thinking" ? 'bg-gradient-to-r from-amber-200 to-amber-300 animate-pulse' :
+              state === "speaking" ? 'bg-gradient-to-r from-purple-200 to-purple-300' :
+              'bg-gradient-to-r from-slate-200 to-slate-300'
+            }`}>
+              <p className="text-2xl mb-1">
+                {state === "listening" && "👂"}
+                {state === "thinking" && "🤔"}
+                {state === "speaking" && "🗣️"}
+                {state === "idle" && "💤"}
+              </p>
+              <p className="text-sm font-bold text-slate-900">
+                {state === "listening" && "Listening to you..."}
+                {state === "thinking" && "Processing..."}
+                {state === "speaking" && "Responding..."}
+                {state === "idle" && "Ready"}
+              </p>
+            </div>
+          )}
+
+          {/* Demo Recording Tip - Under State Indicator */}
+          {isMicEnabled && (
+            <div className="rounded-lg bg-purple-50 border border-purple-200 p-3 text-xs text-purple-800">
+              <p className="font-semibold mb-1">🎬 Demo Recording Tip:</p>
+              <p>Press <kbd className="px-2 py-1 bg-purple-200 rounded font-mono font-bold">M</kbd> key to quickly mute/unmute. When muted, the agent cannot hear you - perfect for pausing during demo recordings!</p>
+            </div>
+          )}
+
           {/* Microphone Muted Notice */}
           {!isMicEnabled && (
             <div className="rounded-xl flex flex-col items-center justify-center bg-gradient-to-r from-red-100 to-red-200 border-2 border-red-400 p-4">
@@ -1226,82 +1294,22 @@ function VoiceAssistantControls({
           )}
         </div>
 
-        {/* Right Column: Avatar */}
-        <div className="flex items-center justify-center">
-          <div className="w-full aspect-[368/560] max-h-[500px] bg-slate-100 rounded-xl shadow-lg overflow-hidden border border-slate-200">
-            <LemonsliceAvatar className="w-full h-full" />
+        {/* Right Column: Avatar (conditionally visible) */}
+        {showAvatar && (
+          <div className="flex items-center justify-center">
+            <div className="w-full aspect-[368/560] max-h-[500px] bg-slate-100 rounded-xl shadow-lg overflow-hidden border border-slate-200">
+              <LemonsliceAvatar className="w-full h-full" />
+            </div>
           </div>
-        </div>
+        )}
+        
+        {/* Keep avatar component rendered but hidden to maintain session */}
+        {!showAvatar && (
+          <div className="hidden">
+            <LemonsliceAvatar />
+          </div>
+        )}
       </div>
-
-      {/* Audio Level Visualization - Full Width Below Split */}
-      {isMicEnabled && micTrack && localParticipant && (
-        <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-green-50 to-green-100 border-2 border-green-300">
-          <div className="text-xs uppercase tracking-wide font-semibold text-green-700 mb-2 text-center">
-            🎙️ Audio Levels (Mic Active)
-          </div>
-          <div className="h-12 flex items-center justify-center">
-            <BarVisualizer 
-              state={state}
-              barCount={20}
-              trackRef={{ 
-                publication: localParticipant.getTrackPublication(Track.Source.Microphone), 
-                source: Track.Source.Microphone,
-                participant: localParticipant
-              }}
-              options={{ 
-                minHeight: 4,
-                maxHeight: 48,
-              }}
-            />
-          </div>
-          <div className="text-xs text-center text-green-600 mt-2">
-            {state === "listening" ? "✓ Capturing your voice..." : "Ready to listen"}
-          </div>
-        </div>
-      )}
-
-      {/* Voice State Indicator - Full Width */}
-      {isMicEnabled && (
-        <div className={`mb-4 h-24 rounded-xl flex flex-col items-center justify-center transition-all duration-300 ${
-          state === "listening" ? 'bg-gradient-to-r from-blue-200 to-blue-300' :
-          state === "thinking" ? 'bg-gradient-to-r from-amber-200 to-amber-300 animate-pulse' :
-          state === "speaking" ? 'bg-gradient-to-r from-purple-200 to-purple-300' :
-          'bg-gradient-to-r from-slate-200 to-slate-300'
-        }`}>
-          <p className="text-3xl mb-2">
-            {state === "listening" && "👂"}
-            {state === "thinking" && "🤔"}
-            {state === "speaking" && "🗣️"}
-            {state === "idle" && "💤"}
-          </p>
-          <p className="text-lg font-bold text-slate-900">
-            {state === "listening" && "Listening to you..."}
-            {state === "thinking" && "Processing your request..."}
-            {state === "speaking" && "Agent is responding..."}
-            {state === "idle" && "Ready - Start talking"}
-          </p>
-          
-          {userTranscript && state === "listening" && (
-            <p className="mt-2 text-sm italic text-slate-700 max-w-xs text-center">
-              "{userTranscript}"
-            </p>
-          )}
-          {agentTranscript && state === "speaking" && (
-            <p className="mt-2 text-sm italic text-slate-700 max-w-xs text-center">
-              "{agentTranscript}"
-            </p>
-          )}
-        </div>
-      )}
-      
-      {/* Demo Recording Tip - Full Width */}
-      {isMicEnabled && (
-        <div className="mb-3 rounded-lg bg-purple-50 border border-purple-200 p-3 text-xs text-purple-800">
-          <p className="font-semibold mb-1">🎬 Demo Recording Tip:</p>
-          <p>Press <kbd className="px-2 py-1 bg-purple-200 rounded font-mono font-bold">M</kbd> key to quickly mute/unmute. When muted, the agent cannot hear you - perfect for pausing during demo recordings!</p>
-        </div>
-      )}
 
       {/* Control Bar - Hidden, using manual button instead */}
       <div className="hidden">
@@ -1315,10 +1323,6 @@ function VoiceAssistantControls({
       >
         End Session
       </button>
-
-      <div className="mt-4 text-center text-xs text-slate-500">
-        <p>Python AgentServer • STT → LLM → TTS • v1.4.1+ Pattern</p>
-      </div>
     </div>
   );
 }

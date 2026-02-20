@@ -957,23 +957,34 @@ async def food_concierge_agent(ctx: JobContext) -> None:
     # LEMONSLICE AVATAR (Optional) - Start AFTER session is running
     # ========================================================================
     logger.info("🔍 Checking for LemonSlice avatar configuration...")
-    # Plugin expects LEMONSLICE_IMAGE_URL (not LEMONSLICE_AVATAR_IMAGE_URL)
+    # Support both custom image URL and pre-built agent ID
     avatar_image_url = os.getenv("LEMONSLICE_IMAGE_URL")
+    avatar_agent_id = os.getenv("LEMONSLICE_AGENT_ID")
     avatar_api_key = os.getenv("LEMONSLICE_API_KEY")
     
     # Debug logging
     logger.info(f"🔍 Avatar Image URL: {avatar_image_url[:50] + '...' if avatar_image_url else 'None'}")
+    logger.info(f"🔍 Avatar Agent ID: {avatar_agent_id if avatar_agent_id else 'None'}")
     logger.info(f"🔍 Avatar API Key: {'***' + avatar_api_key[-4:] if avatar_api_key else 'None'}")
     
-    if avatar_image_url and avatar_api_key:
+    if (avatar_image_url or avatar_agent_id) and avatar_api_key:
         try:
             logger.info("🎭 Starting LemonSlice avatar...")
-            avatar_session = lemonslice.AvatarSession(
-                agent_image_url=avatar_image_url,
-                # Note: Only provide agent_image_url OR agent_id, not both
-                agent_prompt="You are a friendly and enthusiastic food ordering assistant. Be warm, helpful, and excited about food!",
-                idle_timeout=120
-            )
+            
+            # Build AvatarSession parameters - use agent_id if provided, otherwise image_url
+            avatar_params = {
+                "agent_prompt": "You are a friendly and enthusiastic food ordering assistant. Be warm, helpful, and excited about food!",
+                "idle_timeout": 120
+            }
+            
+            if avatar_agent_id:
+                logger.info(f"Using pre-built agent: {avatar_agent_id}")
+                avatar_params["agent_id"] = avatar_agent_id
+            else:
+                logger.info(f"Using custom image URL")
+                avatar_params["agent_image_url"] = avatar_image_url
+            
+            avatar_session = lemonslice.AvatarSession(**avatar_params)
             # Start avatar - needs both session and room
             await avatar_session.start(session, ctx.room)
             logger.info("✅ LemonSlice avatar started successfully")
@@ -1043,7 +1054,7 @@ async def food_concierge_agent(ctx: JobContext) -> None:
             except Exception as send_err:
                 logger.warning(f"Failed to send avatar error status: {send_err}")
     else:
-        logger.info("ℹ️ LemonSlice avatar not configured (missing API key or image URL)")
+        logger.info("ℹ️ LemonSlice avatar not configured (missing API key, agent ID, or image URL)")
         # Send not configured status to frontend
         try:
             status_data = {
