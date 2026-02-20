@@ -1,6 +1,6 @@
 # LiveKit + LemonSlice Voice Avatar Demo: Food Court Concierge
 
-This demo showcases **[LemonSlice](https://lemonslice.ai/) voice avatar** integration with **[LiveKit AgentServer](https://docs.livekit.io/agents/)** framework. Experience a realistic AI avatar with automatic lip-sync responding to natural voice conversations for food ordering.
+This demo showcases **[LemonSlice](https://lemonslice.com/) voice avatar** integration with **[LiveKit AgentServer](https://docs.livekit.io/agents/)** framework. Experience a realistic AI avatar with automatic lip-sync responding to natural voice conversations for food ordering.
 
 ## About This Demo
 
@@ -336,7 +336,7 @@ Built by **Visao Enhance** - AI consulting and development services.
 ## Acknowledgments
 
 Built with:
-- [LemonSlice](https://lemonslice.ai) - Realistic voice avatars with lip-sync
+- [LemonSlice](https://lemonslice.com) - Realistic voice avatars with lip-sync
 - [LiveKit AgentServer](https://docs.livekit.io/agents/) - Real-time voice/video infrastructure
 - [OpenAI](https://openai.com) - LLM and TTS
 - [Deepgram](https://deepgram.com) - Speech-to-text
